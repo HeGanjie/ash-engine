@@ -4,15 +4,19 @@
   "description": "3d game engine dev learning project",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "browserify -d -e src/index.js -t babelify -o dist/bundle.js"
   },
   "author": "heganjie",
   "license": "ISC",
   "devDependencies": {
+    "babel-core": "^6.26.0",
     "babel-preset-env": "^1.6.1",
-    "webpack": "^3.10.0"
+    "babel-preset-stage-0": "^6.24.1",
+    "babelify": "^8.0.0",
+    "browserify": "^16.1.0"
   },
   "dependencies": {
-    "@babel/standalone": "^7.0.0-beta.39"
+    "weblas": "^0.9.1"
   }
 }

@@ -1,6 +1,7 @@
 import {Camera, Mesh, Scene} from './engine'
 import {Vector3} from './math'
 
+
 let canvas = document.getElementById('canvas')
 let ctx = canvas.getContext('2d');
 
@@ -19,7 +20,7 @@ mesh.vertices.push(
 let scene = new Scene([mesh])
 
 let camera = new Camera(400, 300);
-camera.Position = new Vector3(0, 0, 10);
-camera.Target = new Vector3(0, 0, 0);
+camera.position = new Vector3(0, 0, 10);
+camera.target = new Vector3(0, 0, 0);
 camera.render(scene, ctx)
 
