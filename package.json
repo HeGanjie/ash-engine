@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "browserify -d -e src/index.js -t babelify -o dist/bundle.js"
+    "build": "browserify -d -e src/index.js -t babelify -o dist/bundle.js",
+    "server": "python -m SimpleHTTPServer 8000"
   },
   "author": "heganjie",
   "license": "ISC",
