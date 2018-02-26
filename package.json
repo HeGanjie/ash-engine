@@ -17,6 +17,8 @@
     "browserify": "^16.1.0"
   },
   "dependencies": {
+    "lodash": "^4.17.5",
+    "mathjs": "^4.0.0",
     "weblas": "^0.9.1"
   }
 }
