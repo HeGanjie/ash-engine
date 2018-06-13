@@ -25,10 +25,13 @@ export class Camera {
   }
 
   render(scene, ctx, fov = PI/2) {
-    let c2w = Matrix.camera2World(this.position, this.target)
+    let c2w = Matrix.camera2World(this.position, this.target) // 4 * 4
     let w2c = c2w.inv()
-    let worldMs = scene.meshes.map(m => m.toWorldCordMatrix())
-    let cameraMs = worldMs.map(m => w2c.mul(m))
+    let worldMs = scene.meshes.map(m => m.toWorldCordMatrix()) // 4 * Vcount
+    let cameraMs = worldMs.map(m => w2c.mul(m)) // 4 * Vcount
+    // let pp = Matrix.perspectiveProjection(fov) // 4 * 4
+    // let screen3Ds = cameraMs.map(m => pp.mul(m)) // 4 * Vcount
+
     let screen2Ds = cameraMs.map(m => {
       let arr = []
       let mArr = m.data
@@ -56,7 +59,7 @@ export class Camera {
     ctx.clearRect(0, 0, this.width, this.height);
     let backbuffer = ctx.getImageData(0, 0, this.width, this.height)
     raster2Ds.forEach(points => {
-      points.forEach(p => this.drawPoint(backbuffer, p, 1, 1, 0, 1))
+      points.forEach(p => this.drawPoint(backbuffer, p, 1, 1, 1, 1))
     })
     ctx.putImageData(backbuffer, 0, 0)
   }
@@ -66,6 +69,7 @@ export class Mesh {
   position = Vector3.zero()
   rotation = Vector3.zero()
   vertices = []
+  faces = []
   name = null
 
   constructor(name) {

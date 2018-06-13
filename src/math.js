@@ -1,4 +1,4 @@
-let {sin, cos, PI} = Math
+let {sin, cos, tan, PI} = Math
 let weblas = window.weblas
 let {inv} = window.math
 let {chunk} = window._
@@ -91,6 +91,17 @@ export class Matrix {
       0, 0, 0, 1
     ], 4, 4)
   }
+
+  // https://www.scratchapixel.com/lessons/3d-basic-rendering/perspective-and-orthographic-projection-matrix/building-basic-perspective-projection-matrix
+  static perspectiveProjection = _.memoize((fov) => {
+    let S = 1 / tan(fov / 2)
+    return new Matrix([
+      S, 0, 0, 0,
+      0, S, 0, 0,
+      0, 0,-1,-1,
+      0, 0, 0, 0
+    ], 4, 4)
+  })
 
   inv() {
     if (this.rowCount !== this.colCount) {
