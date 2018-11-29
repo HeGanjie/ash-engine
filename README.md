@@ -11,7 +11,7 @@
 
 Rotating cube vertices:
 
-[ash-engine-preview](https://codesandbox.io/s/r5llm4lwjq)
+[ash-engine-preview](https://codesandbox.io/s/github/HeGanjie/ash-engine)
 
 ### License
 MIT
