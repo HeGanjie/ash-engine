@@ -1,9 +1,8 @@
-import {Camera, Mesh, Scene} from './engine'
-import {Vector3} from './math'
+import { Camera, Mesh, Scene } from "./engine";
+import { Vector3 } from "./math";
 
-
-let canvas = document.getElementById('canvas')
-let ctx = canvas.getContext('2d');
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
 
 let mesh = new Mesh("Cube");
 mesh.vertices.push(
@@ -15,13 +14,23 @@ mesh.vertices.push(
   new Vector3(1, 1, -1),
   new Vector3(1, -1, 1),
   new Vector3(1, -1, -1)
-)
+);
 
-mesh.faces.push(
-    { A: 0, B: 1, C: 2 }
-)
+mesh.verticesColor.push(
+  { r: 1, g: 0, b: 0 },
+  { r: 0, g: 1, b: 0 },
+  { r: 0, g: 0, b: 1 },
+  { r: 1, g: 1, b: 1 },
 
-let scene = new Scene([mesh])
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 },
+  { r: 1, g: 1, b: 1 }
+);
+
+mesh.faces.push({ A: 0, B: 2, C: 1 }, { A: 5, B: 7, C: 6 });
+
+let scene = new Scene([mesh]);
 
 let camera = new Camera(400, 300);
 camera.position = new Vector3(0, 0, 5);
@@ -29,10 +38,12 @@ camera.target = new Vector3(0, 0, 0);
 
 // https://stackoverflow.com/a/5111475/1745885
 let filterStrength = 2;
-let frameTime = 0, lastLoop = Date.now(), thisLoop;
+let frameTime = 0,
+  lastLoop = Date.now(),
+  thisLoop;
 
 function drawingLoop() {
-  camera.render(scene, ctx)
+  camera.render(scene, ctx);
   mesh.rotation.x += 0.01;
   mesh.rotation.y += 0.01;
   requestAnimationFrame(drawingLoop);
@@ -42,10 +53,10 @@ function drawingLoop() {
   lastLoop = thisLoop;
 }
 
+requestAnimationFrame(drawingLoop);
+// setInterval(drawingLoop, 5000);
 
-requestAnimationFrame(drawingLoop)
-
-let fpsOut = document.getElementById('fps');
+let fpsOut = document.getElementById("fps");
 setInterval(function() {
-  fpsOut.innerText = (1000/frameTime).toFixed(1) + " fps";
-},1000);
+  fpsOut.innerText = (1000 / frameTime).toFixed(1) + " fps";
+}, 1000);

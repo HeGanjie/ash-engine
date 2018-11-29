@@ -5,21 +5,20 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "browserify -d -e src/index.js -t babelify -o dist/bundle.js",
-    "server": "npx http-server"
+    "dev": "parcel -p 8080 watch index.html"
   },
   "author": "heganjie",
   "license": "ISC",
   "devDependencies": {
-    "babel-core": "^6.26.0",
-    "babel-preset-env": "^1.6.1",
+    "babel-core": "^6.26.3",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-env": "^1.7.0",
     "babel-preset-stage-0": "^6.24.1",
-    "babelify": "^8.0.0",
-    "browserify": "^16.1.0"
+    "parcel-bundler": "^1.10.3"
   },
   "dependencies": {
     "lodash": "^4.17.5",
-    "mathjs": "^4.0.0",
-    "weblas": "^0.9.1"
+    "mathjs": "^4.0.0"
   }
 }
