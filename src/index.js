@@ -1,4 +1,6 @@
-import { Camera, Mesh, Scene } from "./engine";
+import { Mesh, Scene } from "./engine";
+import { Camera } from "./ray-tracking-camera";
+//import { Camera } from "./rasterization-camera";
 import { Vector3 } from "./math";
 
 let canvas = document.getElementById("canvas");
@@ -6,14 +8,14 @@ let ctx = canvas.getContext("2d");
 
 let mesh = new Mesh("Cube");
 mesh.vertices.push(
-  new Vector3(-1, 1, 1), // 左上后
-  new Vector3(1, 1, 1), // 右上后
-  new Vector3(-1, -1, 1), // 左下后
-  new Vector3(-1, -1, -1), //左下前
-  new Vector3(-1, 1, -1),
-  new Vector3(1, 1, -1),
-  new Vector3(1, -1, 1),
-  new Vector3(1, -1, -1)
+  new Vector3(-0.5, 0.5, 0.5), // 左上后
+  new Vector3(0.5, 0.5, 0.5), // 右上后
+  new Vector3(-0.5, -0.5, 0.5), // 左下后
+  new Vector3(-0.5, -0.5, -0.5), //左下前
+  new Vector3(-0.5, 0.5, -0.5),
+  new Vector3(0.5, 0.5, -0.5),
+  new Vector3(0.5, -0.5, 0.5),
+  new Vector3(0.5, -0.5, -0.5)
 );
 
 mesh.verticesColor.push(
@@ -32,8 +34,8 @@ mesh.faces.push({ A: 0, B: 2, C: 1 }, { A: 5, B: 7, C: 6 });
 
 let scene = new Scene([mesh]);
 
-let camera = new Camera(400, 300);
-camera.position = new Vector3(0, 0, 5);
+let camera = new Camera(200, 150);
+camera.position = new Vector3(0, 0, 2.5);
 camera.target = new Vector3(0, 0, 0);
 
 // https://stackoverflow.com/a/5111475/1745885

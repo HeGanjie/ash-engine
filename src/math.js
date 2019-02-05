@@ -1,5 +1,5 @@
-import { inv } from 'mathjs';
-import _, { chunk } from 'lodash';
+import { inv } from "mathjs";
+import _, { chunk } from "lodash";
 let weblas = window.weblas;
 // import weblas from "weblas";
 // let weblas = require("weblas");
@@ -11,9 +11,9 @@ export class Matrix {
   colCount = 0;
 
   constructor(arr, i, j) {
-    if (arr.constructor.name === 'Float32Array') {
+    if (arr.constructor.name === "Float32Array") {
       this.data = arr;
-    } else if (arr[0].constructor.name === 'Array') {
+    } else if (arr[0].constructor.name === "Array") {
       this.data = weblas.util.fromArray(arr);
     } else {
       this.data = new Float32Array(i * j);
@@ -25,7 +25,16 @@ export class Matrix {
     this.colCount = j;
   }
 
+  transpose() {
+    let tr = weblas.util.transpose(this.rowCount, this.colCount, this.data);
+    return new Matrix(tr, this.colCount, this.rowCount);
+  }
+
   mul(m2) {
+    if (4000 < m2.colCount) {
+      let [mA, mB] = m2.splitCol(m2.colCount / 2).map(m => this.mul(m));
+      return mA.concatCol(mB);
+    }
     let v = weblas.sgemm(
       this.rowCount,
       m2.colCount,
@@ -37,6 +46,40 @@ export class Matrix {
       null
     );
     return new Matrix(v, this.rowCount, m2.colCount);
+  }
+
+  splitCol(colCount) {
+    let data0 = Array.from({ length: this.rowCount * colCount }, (v, i) => {
+      let colIdx = i % colCount,
+        rowIdx = Math.floor(i / colCount);
+      return this.data[rowIdx * this.colCount + colIdx];
+    });
+    let rightPartLen = this.colCount - colCount;
+    let data1 = Array.from({ length: this.rowCount * rightPartLen }, (v, i) => {
+      let colIdx = i % rightPartLen,
+        rowIdx = Math.floor(i / rightPartLen);
+      return this.data[rowIdx * this.colCount + colIdx + colCount];
+    });
+    return [
+      new Matrix(data0, this.rowCount, colCount),
+      new Matrix(data1, this.rowCount, rightPartLen)
+    ];
+  }
+
+  concatCol(m2) {
+    let mergedColCount = this.colCount + m2.colCount;
+    let mergedData = Array.from(
+      { length: this.rowCount * mergedColCount },
+      (v, i) => {
+        let colIdx = i % mergedColCount,
+          rowIdx = Math.floor(i / mergedColCount);
+        if (colIdx < this.colCount) {
+          return this.data[rowIdx * this.colCount + colIdx];
+        }
+        return m2.data[rowIdx * m2.colCount + colIdx - this.colCount];
+      }
+    );
+    return new Matrix(mergedData, this.rowCount, mergedColCount);
   }
 
   scale(s) {
@@ -60,12 +103,7 @@ export class Matrix {
   }
 
   addMatrix(m2) {
-    let v = weblas.saxpy(
-      this.rowCount * this.colCount,
-      1,
-      this.data,
-      m2.data
-    );
+    let v = weblas.saxpy(this.rowCount * this.colCount, 1, this.data, m2.data);
     return new Matrix(v, this.rowCount, this.colCount);
   }
 
@@ -153,17 +191,11 @@ export class Matrix {
   }
 
   static transformXYZ(x, y, z) {
-    return new Matrix(
-      [1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1],
-      4,
-      4
-    );
+    return new Matrix([1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1], 4, 4);
   }
 
   static rotateXYZ(tx, ty, tz) {
-    return Matrix.rotateZ(tz).mul(
-      Matrix.rotateY(ty).mul(Matrix.rotateX(tx))
-    );
+    return Matrix.rotateZ(tz).mul(Matrix.rotateY(ty).mul(Matrix.rotateX(tx)));
   }
 
   static camera2World(cameraPos, lookAt, up0 = Vector3.up()) {
@@ -212,7 +244,7 @@ export class Matrix {
 
   inv() {
     if (this.rowCount !== this.colCount) {
-      throw new Error('inverse: this must be a square matrix');
+      throw new Error("inverse: this must be a square matrix");
     }
     let m = chunk(this.data, this.rowCount);
     let res = inv(m);
@@ -224,10 +256,7 @@ export class Matrix {
       m = this,
       mArr = m.data;
     for (
-      let j = 0,
-        jy = m.colCount,
-        jz = m.colCount * 2,
-        jw = m.colCount * 3;
+      let j = 0, jy = m.colCount, jz = m.colCount * 2, jw = m.colCount * 3;
       j < m.colCount;
       j++, jy++, jz++, jw++
     ) {
@@ -287,6 +316,11 @@ export class Vector3 {
       this.x * vec1.y - this.y * vec1.x
     );
   }
+
+  dot(v) {
+    let { x, y, z } = this;
+    return x * v.x + y * v.y + z * v.z;
+  }
 }
 
 export class Vector2 {
@@ -303,6 +337,7 @@ export class Vector2 {
   }
 }
 
+// https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage
 export function edgeFunction(a, b, c) {
   return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
 }
