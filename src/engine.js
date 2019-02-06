@@ -1,8 +1,36 @@
-import { Vector3, Vector2, Matrix, edgeFunction } from "./math";
+import { Vector3, Vector2, Matrix, edgeFunction, mat4MultVec3 } from "./math";
 import { zip, flatMap, isEmpty } from "lodash";
 let { PI, tan, floor, ceil, min, max } = Math;
 
 export const defaultColor = { r: 1, g: 1, b: 1 };
+
+class Light {
+  lightToWorld = null;
+  color = null;
+  intensity = 1;
+
+  constructor(l2w, color, intensity) {
+    this.lightToWorld = l2w;
+    this.color = color;
+    this.intensity = intensity;
+  }
+}
+
+export class PointLight extends Light {
+  position = Vector3.zero();
+  constructor(l2w, color, intensity) {
+    super(l2w, color, intensity);
+    this.position = mat4MultVec3(l2w, Vector3.zero());
+  }
+}
+
+export class DistantLight extends Light {
+  direction = null;
+  constructor(l2w, color, intensity) {
+    super(l2w, color, intensity);
+    this.direction = mat4MultVec3(l2w, new Vector3(0, 0, -1));
+  }
+}
 
 export class Mesh {
   position = Vector3.zero();
@@ -10,6 +38,7 @@ export class Mesh {
   vertices = [];
   verticesColor = [];
   faces = [];
+  albedo = 0.18;
   name = null;
 
   constructor(name) {
@@ -39,8 +68,10 @@ export class Mesh {
 
 export class Scene {
   meshes = null;
-  constructor(meshes) {
+  lights = null;
+  constructor(meshes, lights) {
     this.meshes = meshes;
+    this.lights = lights;
   }
 }
 

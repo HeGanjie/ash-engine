@@ -57,11 +57,6 @@ export class Camera {
       areaOfFacePara
     } = faceInfo;
 
-    /*return (
-      N.dot(vAB.cross(p.subtract(pA))) >= 0 &&
-      N.dot(vBC.cross(p.subtract(pB))) >= 0 &&
-      N.dot(vCA.cross(p.subtract(pC))) >= 0
-    );*/
     let abCap = vAB.cross(p.subtract(pA));
     if (N.dot(abCap) < 0) {
       return false;
@@ -75,15 +70,12 @@ export class Camera {
       return false;
     }
 
-    let u = abCap.length() / areaOfFacePara,
-      v = bcCbp.length() / areaOfFacePara,
-      w = caCcp.length() / areaOfFacePara;
+    let u = bcCbp.length() / areaOfFacePara,
+      v = caCcp.length() / areaOfFacePara,
+      w = abCap.length() / areaOfFacePara;
     traceInfo.u = u;
     traceInfo.v = v;
     traceInfo.w = w; // should same as 1 - u - v
-    traceInfo.abp = abCap.length();
-    traceInfo.p = p;
-    traceInfo.fi = faceInfo;
     traceInfo.pR = colorA.r * u + colorB.r * v + colorC.r * w;
     traceInfo.pG = colorA.g * u + colorB.g * v + colorC.g * w;
     traceInfo.pB = colorA.b * u + colorB.b * v + colorC.b * w;
@@ -99,6 +91,7 @@ export class Camera {
           // isSingleSide
           continue;
         }
+
         let t = tNumerator / N.dot(ray.direction);
         if (
           1e-6 < t &&
@@ -164,6 +157,30 @@ export class Camera {
     return rays;
   }
 
+  _traceStack = [];
+  castRay(ray, faceInfoByMeshes, light, returnColor, depth = 0) {
+    if (!this._traceStack[depth]) {
+      this._traceStack[depth] = {};
+    }
+    let traceInfo = this._traceStack[depth];
+    traceInfo.tNear = Infinity;
+    traceInfo.mIdx = -1;
+    traceInfo.fIdx = -1;
+    if (this.intersect(ray, faceInfoByMeshes, traceInfo)) {
+      let { N, albedoDivPI } = faceInfoByMeshes[traceInfo.mIdx][traceInfo.fIdx],
+        cScale =
+          light.intensity * albedoDivPI * max(0, -N.dot(light.direction));
+      returnColor.r = traceInfo.pR * cScale * light.color.r;
+      returnColor.g = traceInfo.pG * cScale * light.color.g;
+      returnColor.b = traceInfo.pB * cScale * light.color.b;
+      return true;
+    }
+    returnColor.r = 0;
+    returnColor.g = 0;
+    returnColor.b = 0;
+    return false;
+  }
+
   render(scene, ctx, fov = PI / 2) {
     let pixelCount = this.width * this.height;
     ctx.clearRect(0, 0, this.width, this.height);
@@ -171,8 +188,7 @@ export class Camera {
     let rays = this.genRays(fov);
 
     // 转换几何体坐标，计算法线
-    let { meshes } = scene,
-      traceInfo = {},
+    let { meshes, lights } = scene,
       wMeshes = meshes.map((mesh, idx) => {
         let mMat = mesh.toWorldCordMatrix(),
           mMatData = mMat.data,
@@ -211,32 +227,30 @@ export class Camera {
               colorA,
               colorB,
               colorC,
-              areaOfFacePara
+              areaOfFacePara,
+              albedoDivPI: mesh.albedo / Math.PI
             };
           });
         return faceInfos;
       });
 
     // 光线跟踪
-    let screenPoint = {};
+    let screenPoint = {},
+      resultColor = {};
     for (let i = 0; i < rays.length; i++) {
-      traceInfo.tNear = Infinity;
-      traceInfo.mIdx = -1;
-      traceInfo.fIdx = -1;
-
       screenPoint.x = i % this.width;
       screenPoint.y = Math.floor(i / this.width);
-      if (this.intersect(rays[i], wMeshes, traceInfo)) {
+      for (let j = 0; j < lights.length; j++) {
+        this.castRay(rays[i], wMeshes, lights[j], resultColor);
+
         this.drawPoint(
           backbuffer,
           screenPoint,
-          traceInfo.pR,
-          traceInfo.pG,
-          traceInfo.pB,
+          resultColor.r,
+          resultColor.g,
+          resultColor.b,
           1
         );
-      } else {
-        this.drawPoint(backbuffer, screenPoint, 0, 0, 0, 1);
       }
     }
     ctx.putImageData(backbuffer, 0, 0);

@@ -5,6 +5,17 @@ let weblas = window.weblas;
 // let weblas = require("weblas");
 let { sin, cos, tan, PI } = Math;
 
+export function mat4MultVec3(mat4, vec3, w = 1) {
+  let { data } = mat4;
+  let { x, y, z } = vec3;
+  let nextW = data[12] * x + data[13] * y + data[14] * z + data[15] * w;
+  return new Vector3(
+    (data[0] * x + data[1] * y + data[2] * z + data[3] * w) / nextW,
+    (data[4] * x + data[5] * y + data[6] * z + data[7] * w) / nextW,
+    (data[8] * x + data[9] * y + data[10] * z + data[11] * w) / nextW
+  );
+}
+
 export class Matrix {
   data = null;
   rowCount = 0;
