@@ -297,12 +297,20 @@ export class Vector3 {
     this.z = z;
   }
 
+  add(vec3) {
+    return new Vector3(this.x + vec3.x, this.y + vec3.y, this.z + vec3.z);
+  }
+
   subtract(otherVector) {
     return new Vector3(
       this.x - otherVector.x,
       this.y - otherVector.y,
       this.z - otherVector.z
     );
+  }
+
+  scale(n) {
+    return new Vector3(this.x * n, this.y * n, this.z * n);
   }
 
   length() {

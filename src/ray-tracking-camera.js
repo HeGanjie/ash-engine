@@ -76,6 +76,7 @@ export class Camera {
     traceInfo.u = u;
     traceInfo.v = v;
     traceInfo.w = w; // should same as 1 - u - v
+    traceInfo.p = p;
     traceInfo.pR = colorA.r * u + colorB.r * v + colorC.r * w;
     traceInfo.pG = colorA.g * u + colorB.g * v + colorC.g * w;
     traceInfo.pB = colorA.b * u + colorB.b * v + colorC.b * w;
@@ -86,13 +87,13 @@ export class Camera {
     for (let mI = 0; mI < wMeshes.length; mI++) {
       let faceInfos = wMeshes[mI];
       for (let i = 0; i < faceInfos.length; i++) {
-        let { N, tNumerator } = faceInfos[i];
+        let { N, pA } = faceInfos[i];
         if (ray.direction.dot(N) > 0) {
           // isSingleSide
           continue;
         }
 
-        let t = tNumerator / N.dot(ray.direction);
+        let t = N.dot(pA.subtract(ray.origin)) / N.dot(ray.direction);
         if (
           1e-6 < t &&
           t < traceInfo.tNear &&
@@ -157,22 +158,32 @@ export class Camera {
     return rays;
   }
 
-  _traceStack = [];
+  _traceStack = [{}, {}, {}, {}];
+  _shadowRayReturnColor = {};
   castRay(ray, faceInfoByMeshes, light, returnColor, depth = 0) {
-    if (!this._traceStack[depth]) {
-      this._traceStack[depth] = {};
-    }
     let traceInfo = this._traceStack[depth];
     traceInfo.tNear = Infinity;
     traceInfo.mIdx = -1;
     traceInfo.fIdx = -1;
     if (this.intersect(ray, faceInfoByMeshes, traceInfo)) {
       let { N, albedoDivPI } = faceInfoByMeshes[traceInfo.mIdx][traceInfo.fIdx],
+        { p } = traceInfo,
+        visOfLight =
+          light &&
+          !this.castRay(
+            new Ray(p.add(N.scale(0.001)), light.direction.scale(-1)),
+            faceInfoByMeshes,
+            null,
+            this._shadowRayReturnColor,
+            depth + 1
+          ),
         cScale =
-          light.intensity * albedoDivPI * max(0, -N.dot(light.direction));
-      returnColor.r = traceInfo.pR * cScale * light.color.r;
-      returnColor.g = traceInfo.pG * cScale * light.color.g;
-      returnColor.b = traceInfo.pB * cScale * light.color.b;
+          light && visOfLight
+            ? light.intensity * albedoDivPI * max(0, -N.dot(light.direction))
+            : 0;
+      returnColor.r = cScale === 0 ? 0 : traceInfo.pR * cScale * light.color.r;
+      returnColor.g = cScale === 0 ? 0 : traceInfo.pG * cScale * light.color.g;
+      returnColor.b = cScale === 0 ? 0 : traceInfo.pB * cScale * light.color.b;
       return true;
     }
     returnColor.r = 0;
@@ -214,7 +225,7 @@ export class Camera {
               areaOfFacePara = N.length();
 
             N.normalize();
-            let tNumerator = N.dot(pA.subtract(this.position));
+
             return {
               N,
               pA,
@@ -223,7 +234,6 @@ export class Camera {
               vAB,
               vBC,
               vCA,
-              tNumerator,
               colorA,
               colorB,
               colorC,
