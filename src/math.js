@@ -326,6 +326,8 @@ export class Vector3 {
     this.x *= num;
     this.y *= num;
     this.z *= num;
+
+    return len;
   }
 
   cross(vec1) {

@@ -37,11 +37,9 @@ export class Camera {
   }
 
   // https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/barycentric-coordinates
-  intersectTriangle(ray, t, faceInfo, traceInfo) {
-    let {
-      origin: { x: oX, y: oY, z: oZ },
-      direction: { x: dX, y: dY, z: dZ }
-    } = ray;
+  intersectTriangle(rayOrigin, rayDirection, t, faceInfo, traceInfo) {
+    let { x: oX, y: oY, z: oZ } = rayOrigin;
+    let { x: dX, y: dY, z: dZ } = rayDirection;
     let p = new Vector3(oX + t * dX, oY + t * dY, oZ + t * dZ);
     let {
       N,
@@ -83,21 +81,27 @@ export class Camera {
     return true;
   }
 
-  intersect(ray, wMeshes, traceInfo) {
+  intersect(rayOrigin, rayDirection, wMeshes, traceInfo) {
     for (let mI = 0; mI < wMeshes.length; mI++) {
       let faceInfos = wMeshes[mI];
       for (let i = 0; i < faceInfos.length; i++) {
         let { N, pA } = faceInfos[i];
-        if (ray.direction.dot(N) > 0) {
+        if (rayDirection.dot(N) > 0) {
           // isSingleSide
           continue;
         }
 
-        let t = N.dot(pA.subtract(ray.origin)) / N.dot(ray.direction);
+        let t = N.dot(pA.subtract(rayOrigin)) / N.dot(rayDirection);
         if (
           1e-6 < t &&
           t < traceInfo.tNear &&
-          this.intersectTriangle(ray, t, faceInfos[i], traceInfo)
+          this.intersectTriangle(
+            rayOrigin,
+            rayDirection,
+            t,
+            faceInfos[i],
+            traceInfo
+          )
         ) {
           traceInfo.tNear = t;
           traceInfo.mIdx = mI;
@@ -160,35 +164,55 @@ export class Camera {
 
   _traceStack = [{}, {}, {}, {}];
   _shadowRayReturnColor = {};
-  castRay(ray, faceInfoByMeshes, light, returnColor, depth = 0) {
+  castRay(
+    rayOrigin,
+    rayDirection,
+    faceInfoByMeshes,
+    light,
+    returnColor,
+    depth = 0,
+    maxRayLen = Infinity
+  ) {
     let traceInfo = this._traceStack[depth];
-    traceInfo.tNear = Infinity;
+    traceInfo.tNear = maxRayLen;
     traceInfo.mIdx = -1;
     traceInfo.fIdx = -1;
-    if (this.intersect(ray, faceInfoByMeshes, traceInfo)) {
+    if (this.intersect(rayOrigin, rayDirection, faceInfoByMeshes, traceInfo)) {
       let { N, albedoDivPI } = faceInfoByMeshes[traceInfo.mIdx][traceInfo.fIdx],
-        { p } = traceInfo,
-        visOfLight =
+        { p } = traceInfo;
+      let lightDirection = light
+        ? light.direction || p.subtract(light.position)
+        : null;
+      let pointLightDistanceToPHit = null;
+      if (light && light.position) {
+        pointLightDistanceToPHit = lightDirection.normalize();
+      }
+      let visOfLight =
           light &&
           !this.castRay(
-            new Ray(p.add(N.scale(0.001)), light.direction.scale(-1)),
+            p.add(N.scale(0.001)),
+            light.getShadowLightDirection(p),
             faceInfoByMeshes,
             null,
             this._shadowRayReturnColor,
-            depth + 1
+            depth + 1,
+            light.position ? pointLightDistanceToPHit : Infinity
           ),
         cScale =
           light && visOfLight
-            ? light.intensity * albedoDivPI * max(0, -N.dot(light.direction))
+            ? light.intensity *
+              albedoDivPI *
+              max(0, -N.dot(lightDirection)) *
+              (light.position
+                ? 1 /
+                  (4 * PI * pointLightDistanceToPHit * pointLightDistanceToPHit)
+                : 1)
             : 0;
-      returnColor.r = cScale === 0 ? 0 : traceInfo.pR * cScale * light.color.r;
-      returnColor.g = cScale === 0 ? 0 : traceInfo.pG * cScale * light.color.g;
-      returnColor.b = cScale === 0 ? 0 : traceInfo.pB * cScale * light.color.b;
+      returnColor.r += cScale === 0 ? 0 : traceInfo.pR * cScale * light.color.r;
+      returnColor.g += cScale === 0 ? 0 : traceInfo.pG * cScale * light.color.g;
+      returnColor.b += cScale === 0 ? 0 : traceInfo.pB * cScale * light.color.b;
       return true;
     }
-    returnColor.r = 0;
-    returnColor.g = 0;
-    returnColor.b = 0;
     return false;
   }
 
@@ -250,8 +274,15 @@ export class Camera {
     for (let i = 0; i < rays.length; i++) {
       screenPoint.x = i % this.width;
       screenPoint.y = Math.floor(i / this.width);
+      resultColor.r = resultColor.g = resultColor.b = 0;
       for (let j = 0; j < lights.length; j++) {
-        this.castRay(rays[i], wMeshes, lights[j], resultColor);
+        this.castRay(
+          rays[i].origin,
+          rays[i].direction,
+          wMeshes,
+          lights[j],
+          resultColor
+        );
 
         this.drawPoint(
           backbuffer,

@@ -36,7 +36,7 @@ cubeMesh.faces.push(
 );
 cubeMesh.verticesColor.push(
   { r: 1, g: 1, b: 1 },
-  { r: 0, g: 1, b: 0 },
+  { r: 1, g: 1, b: 1 }, // 0 1 0
   { r: 1, g: 1, b: 1 },
   { r: 1, g: 1, b: 1 },
 
@@ -48,10 +48,10 @@ cubeMesh.verticesColor.push(
 
 let planeMesh = new Mesh("Ground");
 planeMesh.vertices.push(
-  new Vector3(-5, -3, -5),
-  new Vector3(5, -3, -5),
-  new Vector3(-5, -3, 5),
-  new Vector3(5, -3, 5)
+  new Vector3(-5, -2, -5),
+  new Vector3(5, -2, -5),
+  new Vector3(-5, -2, 5),
+  new Vector3(5, -2, 5)
 );
 planeMesh.faces.push({ A: 0, B: 2, C: 1 }, { A: 1, B: 2, C: 3 });
 planeMesh.verticesColor.push(
@@ -66,10 +66,19 @@ let distantLight = new DistantLight(
   { r: 1, g: 1, b: 1 },
   15
 );
+let pointLight1 = new PointLight(
+  Matrix.transformXYZ(-2, 2, 0),
+  { r: 0.6, g: 0.6, b: 1 },
+  1000
+);
+let pointLight2 = new PointLight(
+  Matrix.transformXYZ(2, 2, 0),
+  { r: 1, g: 0.6, b: 0.6 },
+  1000
+);
+let scene = new Scene([planeMesh, cubeMesh], [pointLight1, pointLight2]);
 
-let scene = new Scene([planeMesh, cubeMesh], [distantLight]);
-
-let camera = new Camera(200, 150);
+let camera = new Camera(canvas.width, canvas.height);
 camera.position = new Vector3(0, 2, 3);
 camera.target = new Vector3(0, -1, 0);
 

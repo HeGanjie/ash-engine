@@ -22,6 +22,11 @@ export class PointLight extends Light {
     super(l2w, color, intensity);
     this.position = mat4MultVec3(l2w, Vector3.zero());
   }
+  getShadowLightDirection(pHit) {
+    let d0 = this.position.subtract(pHit);
+    d0.normalize();
+    return d0;
+  }
 }
 
 export class DistantLight extends Light {
@@ -29,6 +34,9 @@ export class DistantLight extends Light {
   constructor(l2w, color, intensity) {
     super(l2w, color, intensity);
     this.direction = mat4MultVec3(l2w, new Vector3(0, 0, -1));
+  }
+  getShadowLightDirection(pHit) {
+    return this.direction.scale(-1);
   }
 }
 
