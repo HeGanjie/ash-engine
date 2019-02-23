@@ -9,7 +9,7 @@
 
 ### Run result
 
-Rotating cube vertices:
+Rotating cube:
 
 [ash-engine-preview](https://codesandbox.io/s/github/HeGanjie/ash-engine)
 
