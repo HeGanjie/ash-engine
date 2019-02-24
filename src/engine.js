@@ -44,6 +44,7 @@ export class Mesh {
   position = Vector3.zero();
   rotation = Vector3.zero();
   vertices = [];
+  normals = [];
   verticesColor = [];
   faces = [];
   albedo = 0.18;
