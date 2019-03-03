@@ -61,11 +61,12 @@ cubeMesh.verticesColor.push(
 
 let planeMesh = new Mesh("Ground");
 planeMesh.vertices.push(
-  new Vector3(-5, -2, -5),
-  new Vector3(5, -2, -5),
-  new Vector3(-5, -2, 5),
-  new Vector3(5, -2, 5)
+  new Vector3(-5, 0, -5),
+  new Vector3(5, 0, -5),
+  new Vector3(-5, 0, 5),
+  new Vector3(5, 0, 5)
 );
+planeMesh.position = new Vector3(0, -2, 0);
 planeMesh.normals.push(new Vector3(0, 1, 0));
 planeMesh.faces.push(
   { A: 0, B: 2, C: 1, AN: 0, BN: 0, CN: 0 },
@@ -79,7 +80,7 @@ planeMesh.verticesColor.push(
 );
 
 let distantLight = new DistantLight(
-  Matrix.rotateX(-Math.PI / 2),
+  Matrix.rotateX((-90 * Math.PI) / 180),
   { r: 1, g: 1, b: 1 },
   15
 );

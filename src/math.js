@@ -1,6 +1,8 @@
 import { inv } from "mathjs";
 import _, { chunk } from "lodash";
+//import { mat4 } from "gl-matrix";
 let weblas = window.weblas;
+
 // import weblas from "weblas";
 // let weblas = require("weblas");
 let { sin, cos, tan, PI } = Math;
@@ -16,6 +18,7 @@ export function mat4MultVec3(mat4, vec3, w = 1) {
   );
 }
 
+// row-major
 export class Matrix {
   data = null;
   rowCount = 0;
