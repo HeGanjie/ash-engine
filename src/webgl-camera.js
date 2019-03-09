@@ -1,5 +1,4 @@
-import { Vector3, Vector2, Matrix, edgeFunction } from "./math";
-import { zip, flatMap, isEmpty, round, clone, isEqual } from "lodash";
+import { mat4, vec3 } from "gl-matrix";
 import { defaultColor, Ray } from "./engine";
 
 let { PI, tan, floor, ceil, min, max } = Math;
@@ -36,11 +35,38 @@ function createProgram(gl, vertexShader, fragmentShader) {
   gl.deleteProgram(program);
 }
 
+function camera2World(out, cameraPos, lookAt, up0 = vec3.fromValues(0, 1, 0)) {
+  let forward = vec3.subtract(vec3.create(), cameraPos, lookAt);
+  vec3.normalize(forward, forward);
+  let right = vec3.cross(vec3.create(), up0, forward);
+  vec3.normalize(right, right);
+  let up = vec3.cross(vec3.create(), forward, right);
+  vec3.normalize(up, up);
+  return mat4.set(out, ...right, 0, ...up, 0, ...forward, 0, ...cameraPos, 1);
+  /*return new Matrix(
+    [
+      right.x,      up.x,      forward.x,      cameraPos.x,
+      right.y,      up.y,      forward.y,      cameraPos.y,
+      right.z,      up.z,      forward.z,      cameraPos.z,
+      0,      0,      0,      1
+    ],
+    4,
+    4
+  );*/
+}
+
+function mat4RotateXYZ(out, src, x, y, z) {
+  mat4.rotateX(out, src, x);
+  mat4.rotateY(out, out, y);
+  mat4.rotateZ(out, out, z);
+  return out;
+}
+
 export class Camera {
   width = 400;
   height = 300;
-  position = Vector3.zero();
-  target = Vector3.zero();
+  position = vec3.create();
+  target = vec3.create();
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
 
@@ -66,56 +92,68 @@ export class Camera {
       t_b = top - bottom,
       f_n = far - near;
 
-    return new Matrix(
+    return mat4.fromValues(
+      (2 * near) / r_l,
+      0,
+      0,
+      0,
+      0,
+      (2 * near) / t_b,
+      0,
+      0,
+      (right + left) / r_l,
+      (top + bottom) / t_b,
+      -(far + near) / f_n,
+      -1,
+      0,
+      0,
+      (-2 * far * near) / f_n,
+      0
+    );
+    /*return new Matrix(
       [
-        (2 * near) / r_l,
-        0,
-        (right + left) / r_l,
-        0,
-        0,
-        (2 * near) / t_b,
-        (top + bottom) / t_b,
-        0,
-        0,
-        0,
-        -(far + near) / f_n,
-        (-2 * far * near) / f_n,
-        0,
-        0,
-        -1,
-        0
+        (2 * near) / r_l,        0,        (right + left) / r_l,        0,
+        0,        (2 * near) / t_b,        (top + bottom) / t_b,        0,
+        0,        0,        -(far + near) / f_n,        (-2 * far * near) / f_n,
+        0,        0,        -1,        0
       ],
       4,
       4
-    );
+    );*/
   }
 
   webglOrthographicProjectionMatrix(t, b, l, r, n, f) {
     let r_l = r - l,
       t_b = t - b,
       f_n = f - n;
-    return new Matrix(
+    return mat4.fromValues(
+      2 / r_l,
+      0,
+      0,
+      0,
+      0,
+      2 / t_b,
+      0,
+      0,
+      0,
+      0,
+      -2 / f_n,
+      0,
+      -(r + l) / r_l,
+      -(t + b) / t_b,
+      -(f + n) / f_n,
+      1
+    );
+    /*return new Matrix(
       [
-        2 / r_l,
-        0,
-        0,
-        -(r + l) / r_l,
-        0,
-        2 / t_b,
-        0,
-        -(t + b) / t_b,
-        0,
-        0,
-        -2 / f_n,
-        -(f + n) / f_n,
-        0,
-        0,
-        0,
-        1
+        2 / r_l, 0,        0,        -(r + l) / r_l,
+        0,        2 / t_b,        0,        -(t + b) / t_b,
+        0,        0,        -2 / f_n,        -(f + n) / f_n,
+        0,        0,        0,        1
       ],
       4,
       4
-    );
+    );*/
   }
 
   initShader(scene, gl) {
@@ -187,18 +225,20 @@ export class Camera {
 
     let positionBuffers = scene.meshes.map(mesh => {
       var positionBuffer = gl.createBuffer();
-      let { vertices, faces, normals } = mesh;
+      let { vertices, faces } = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      let positions = flatMap(faces, f => {
+      let position = faces.reduce((acc, f) => {
         let vA = vertices[f.A],
           vB = vertices[f.B],
           vC = vertices[f.C];
-        return [vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, vC.x, vC.y, vC.z];
-      });
+        acc.push(...vA, ...vB, ...vC);
+        return acc;
+      }, []);
+
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.bufferData(
         gl.ARRAY_BUFFER,
-        new Float32Array(positions),
+        new Float32Array(position),
         gl.STATIC_DRAW
       );
       return positionBuffer;
@@ -207,12 +247,15 @@ export class Camera {
     let normalBuffers = scene.meshes.map(mesh => {
       let { faces, normals } = mesh;
       var normalBuffer = gl.createBuffer();
-      let normalPositions = flatMap(faces, f => {
+
+      let normalPositions = faces.reduce((acc, f) => {
         let vAN = normals[f.AN],
           vBN = normals[f.BN],
           vCN = normals[f.CN];
-        return [vAN.x, vAN.y, vAN.z, vBN.x, vBN.y, vBN.z, vCN.x, vCN.y, vCN.z];
-      });
+        acc.push(...vAN, ...vBN, ...vCN);
+        return acc;
+      }, []);
+
       gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
       gl.bufferData(
         gl.ARRAY_BUFFER,
@@ -268,16 +311,18 @@ export class Camera {
       var positionBuffer = gl.createBuffer();
       let { vertices, faces } = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      let positions = flatMap(faces, f => {
+      let position = faces.reduce((acc, f) => {
         let vA = vertices[f.A],
           vB = vertices[f.B],
           vC = vertices[f.C];
-        return [vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, vC.x, vC.y, vC.z];
-      });
+        acc.push(...vA, ...vB, ...vC);
+        return acc;
+      }, []);
+
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.bufferData(
         gl.ARRAY_BUFFER,
-        new Float32Array(positions),
+        new Float32Array(position),
         gl.STATIC_DRAW
       );
       return positionBuffer;
@@ -362,8 +407,13 @@ export class Camera {
     // 绘制 shadowMap
     let { meshes, lights } = scene;
     let { direction: lightDirection } = lights[0];
-    let l2w = Matrix.camera2World(lightDirection.scale(-3), lightDirection),
-      w2l = l2w.inv(); // 4 * 4
+    // TODO 计算实际边界
+    let l2w = camera2World(
+      mat4.create(),
+      vec3.scale(vec3.create(), lightDirection, -3),
+      lightDirection
+    );
+    let w2l = mat4.invert(mat4.create(), l2w); // 4 * 4
     let orthProjMatrix = this.webglOrthographicProjectionMatrix(
       6,
       -6,
@@ -383,21 +433,16 @@ export class Camera {
 
     gl.useProgram(program);
 
-    let op_w2l = orthProjMatrix.mul(w2l);
+    let op_w2l = mat4.multiply(mat4.create(), orthProjMatrix, w2l);
     this.shadowMapConf.op_w2l = op_w2l;
 
     for (let i = 0; i < meshes.length; i++) {
       let mesh = meshes[i];
       let { rotation, position } = mesh;
-      let mRo = Matrix.rotateXYZ(rotation.x, rotation.y, rotation.z);
-      let mTr = Matrix.transformXYZ(position.x, position.y, position.z);
-      let op_w2l_transform = op_w2l.mul(mRo.mul(mTr));
+      let op_w2l_rot = mat4RotateXYZ(mat4.create(), op_w2l, ...rotation);
+      let op_w2l_rot_trans = mat4.translate(op_w2l_rot, op_w2l_rot, position);
 
-      gl.uniformMatrix4fv(
-        matrixLocation,
-        false,
-        op_w2l_transform.transpose().data
-      );
+      gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
 
       {
         gl.enableVertexAttribArray(positionAttributeLocation);
@@ -462,47 +507,38 @@ export class Camera {
 
     // 设置光线方向
     let [distantLight] = scene.lights;
-    let shadowLightDir = distantLight.getShadowLightDirection();
-    shadowLightDir.normalize();
-    gl.uniform3fv(reverseLightDirectionLocation, [
-      shadowLightDir.x,
-      shadowLightDir.y,
-      shadowLightDir.z
-    ]);
+    let shadowLightDir = vec3.create();
+    distantLight.getShadowLightDirection(shadowLightDir);
+    vec3.normalize(shadowLightDir, shadowLightDir);
+    gl.uniform3fv(reverseLightDirectionLocation, shadowLightDir);
     gl.uniform1i(texShadowMapLocation, 0);
 
-    let c2w = Matrix.camera2World(this.position, this.target); // 4 * 4
-    let w2c = c2w.inv();
+    let c2w = camera2World(mat4.create(), this.position, this.target); // 4 * 4
+    let w2c = mat4.invert(mat4.create(), c2w);
     let perspectiveProjectionMatrix = this.webglPerspectiveProjectionMatrix(
       fov,
       1,
       20
     );
-    let pp_w2c = perspectiveProjectionMatrix.mul(w2c);
+    let pp_w2c = mat4.multiply(mat4.create(), perspectiveProjectionMatrix, w2c);
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let { rotation, position } = mesh;
-      let mRo = Matrix.rotateXYZ(rotation.x, rotation.y, rotation.z);
-      let mTr = Matrix.transformXYZ(position.x, position.y, position.z);
-      let transformMatrix = mRo.mul(mTr);
-      let pp_w2c_transform = pp_w2c.mul(transformMatrix);
-      let op_w2l_transform = op_w2l.mul(transformMatrix);
+      let m = mat4.create();
+      let mRo = mat4RotateXYZ(m, m, ...rotation);
+      let mRotTrans = mat4.translate(mat4.create(), mRo, position);
 
-      gl.uniformMatrix4fv(
-        matrixLocation,
-        false,
-        pp_w2c_transform.transpose().data
-      );
-      gl.uniformMatrix4fv(
-        shadowMapMatrixLocation,
-        false,
-        op_w2l_transform.transpose().data
-      );
+      let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mRotTrans);
+      let op_w2l_transform = mat4.multiply(mat4.create(), op_w2l, mRotTrans);
+
+      let mNormalTrans = mat4.multiply(mat4.create(), w2c, mRo);
+      gl.uniformMatrix4fv(matrixLocation, false, pp_w2c_transform);
+      gl.uniformMatrix4fv(shadowMapMatrixLocation, false, op_w2l_transform);
       gl.uniformMatrix4fv(
         normalTransformMatrixLocation,
         false,
-        w2c.mul(mRo).inv().data
+        mat4.transpose(mNormalTrans, mat4.invert(mNormalTrans, mNormalTrans))
       );
 
       {

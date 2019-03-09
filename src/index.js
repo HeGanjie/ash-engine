@@ -1,8 +1,11 @@
+import { mat4, vec3 } from "gl-matrix";
 import { Mesh, Scene, DistantLight, PointLight } from "./engine";
-// import { Camera } from "./ray-tracking-camera";
-//import { Camera } from "./rasterization-camera";
 import { Camera } from "./webgl-camera";
-import { Vector3, Matrix } from "./math";
+import Stats from "stats.js";
+
+var stats = new Stats();
+stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild(stats.dom);
 
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("webgl"); // 2d
@@ -13,23 +16,23 @@ if (!ctx) {
 
 let cubeMesh = new Mesh("Cube");
 cubeMesh.vertices.push(
-  new Vector3(-0.5, 0.5, 0.5), // 左上后
-  new Vector3(0.5, 0.5, 0.5), // 右上后
-  new Vector3(-0.5, -0.5, 0.5), // 左下后
-  new Vector3(0.5, -0.5, 0.5), // 右下后
+  vec3.fromValues(-0.5, 0.5, 0.5), // 左上后
+  vec3.fromValues(0.5, 0.5, 0.5), // 右上后
+  vec3.fromValues(-0.5, -0.5, 0.5), // 左下后
+  vec3.fromValues(0.5, -0.5, 0.5), // 右下后
 
-  new Vector3(-0.5, 0.5, -0.5), // 左上前
-  new Vector3(0.5, 0.5, -0.5), // 右上前
-  new Vector3(-0.5, -0.5, -0.5), //左下前
-  new Vector3(0.5, -0.5, -0.5) // 右下前
+  vec3.fromValues(-0.5, 0.5, -0.5), // 左上前
+  vec3.fromValues(0.5, 0.5, -0.5), // 右上前
+  vec3.fromValues(-0.5, -0.5, -0.5), //左下前
+  vec3.fromValues(0.5, -0.5, -0.5) // 右下前
 );
 cubeMesh.normals.push(
-  new Vector3(0, 0, 1), // 后
-  new Vector3(0, 0, -1), // 前
-  new Vector3(1, 0, 0), // 右
-  new Vector3(-1, 0, 1), // 左
-  new Vector3(0, 1, 0), // 上
-  new Vector3(0, -1, 0) // 下
+  vec3.fromValues(0, 0, 1), // 后
+  vec3.fromValues(0, 0, -1), // 前
+  vec3.fromValues(1, 0, 0), // 右
+  vec3.fromValues(-1, 0, 1), // 左
+  vec3.fromValues(0, 1, 0), // 上
+  vec3.fromValues(0, -1, 0) // 下
 );
 cubeMesh.faces.push(
   { A: 0, B: 2, C: 1, AN: 0, BN: 0, CN: 0 },
@@ -61,13 +64,13 @@ cubeMesh.verticesColor.push(
 
 let planeMesh = new Mesh("Ground");
 planeMesh.vertices.push(
-  new Vector3(-5, 0, -5),
-  new Vector3(5, 0, -5),
-  new Vector3(-5, 0, 5),
-  new Vector3(5, 0, 5)
+  vec3.fromValues(-5, 0, -5),
+  vec3.fromValues(5, 0, -5),
+  vec3.fromValues(-5, 0, 5),
+  vec3.fromValues(5, 0, 5)
 );
-planeMesh.position = new Vector3(0, -2, 0);
-planeMesh.normals.push(new Vector3(0, 1, 0));
+planeMesh.position = vec3.fromValues(0, -2, 0);
+planeMesh.normals.push(vec3.fromValues(0, 1, 0));
 planeMesh.faces.push(
   { A: 0, B: 2, C: 1, AN: 0, BN: 0, CN: 0 },
   { A: 1, B: 2, C: 3, AN: 0, BN: 0, CN: 0 }
@@ -80,47 +83,34 @@ planeMesh.verticesColor.push(
 );
 
 let distantLight = new DistantLight(
-  Matrix.rotateX((-90 * Math.PI) / 180),
+  mat4.fromXRotation(mat4.create(), (-90 * Math.PI) / 180),
   { r: 1, g: 1, b: 1 },
   15
 );
 let pointLight1 = new PointLight(
-  Matrix.transformXYZ(-2, 2, 0),
+  mat4.fromTranslation(mat4.create(), [-2, 2, 0]),
   { r: 0.6, g: 0.6, b: 1 },
   1000
 );
 let pointLight2 = new PointLight(
-  Matrix.transformXYZ(2, 2, 0),
+  mat4.fromTranslation(mat4.create(), [2, 2, 0]),
   { r: 1, g: 0.6, b: 0.6 },
   1000
 );
 let scene = new Scene([planeMesh, cubeMesh], [distantLight]);
 
 let camera = new Camera(canvas.width, canvas.height);
-camera.position = new Vector3(0, 2, 3);
-camera.target = new Vector3(0, -1, 0);
-
-// https://stackoverflow.com/a/5111475/1745885
-let filterStrength = 2;
-let frameTime = 0,
-  lastLoop = Date.now(),
-  thisLoop;
+camera.position = vec3.fromValues(0, 2, 3);
+camera.target = vec3.fromValues(0, -1, 0);
 
 function drawingLoop() {
+  stats.begin();
   camera.render(scene, ctx);
-  cubeMesh.rotation.x += 0.01;
-  cubeMesh.rotation.y += 0.01;
+  cubeMesh.rotation[0] += 0.01;
+  cubeMesh.rotation[1] += 0.01;
+  stats.end();
   requestAnimationFrame(drawingLoop);
-
-  let thisFrameTime = (thisLoop = Date.now()) - lastLoop;
-  frameTime += (thisFrameTime - frameTime) / filterStrength;
-  lastLoop = thisLoop;
 }
 
 requestAnimationFrame(drawingLoop);
 // setInterval(drawingLoop, 5000);
-
-let fpsOut = document.getElementById("fps");
-setInterval(function() {
-  fpsOut.innerText = (1000 / frameTime).toFixed(1) + " fps";
-}, 1000);
