@@ -1,69 +1,16 @@
 import {mat4, vec3} from "gl-matrix";
-import mainVertShader from './main-shader.vert'
-import mainFragShader from './main-shader.frag'
-import distantLightVertShader from './distant-light-shadow-map.vert'
-import distantLightFragShader from './distant-light-shadow-map.frag'
+import mainVertShader from './shader/main-shader.vert'
+import mainFragShader from './shader/main-shader.frag'
+import distantLightVertShader from './shader/distant-light-shadow-map.vert'
+import distantLightFragShader from './shader/distant-light-shadow-map.frag'
+import {createProgram, createShader} from "./webgl-utils";
+import {camera2World, mat4RotateXYZ, webglOrthographicProjectionMatrix, webglPerspectiveProjectionMatrix} from "./math";
 
-let { PI, tan, floor, ceil, min, max } = Math;
+let {PI, tan, floor, ceil, min, max} = Math;
 
 const targetTextureWidth = 256;
 const targetTextureHeight = 256;
 const renderShadowMap = false;
-
-// 创建着色器方法，输入参数：渲染上下文，着色器类型，数据源
-function createShader(gl, type, source) {
-  var shader = gl.createShader(type); // 创建着色器对象
-  gl.shaderSource(shader, source); // 提供数据源
-  gl.compileShader(shader); // 编译 -> 生成着色器
-  var success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-  if (success) {
-    return shader;
-  }
-
-  console.log(gl.getShaderInfoLog(shader));
-  gl.deleteShader(shader);
-}
-
-function createProgram(gl, vertexShader, fragmentShader) {
-  var program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  var success = gl.getProgramParameter(program, gl.LINK_STATUS);
-  if (success) {
-    return program;
-  }
-
-  console.log(gl.getProgramInfoLog(program));
-  gl.deleteProgram(program);
-}
-
-function camera2World(out, cameraPos, lookAt, up0 = vec3.fromValues(0, 1, 0)) {
-  let forward = vec3.subtract(vec3.create(), cameraPos, lookAt);
-  vec3.normalize(forward, forward);
-  let right = vec3.cross(vec3.create(), up0, forward);
-  vec3.normalize(right, right);
-  let up = vec3.cross(vec3.create(), forward, right);
-  vec3.normalize(up, up);
-  return mat4.set(out, ...right, 0, ...up, 0, ...forward, 0, ...cameraPos, 1);
-  /*return new Matrix(
-    [
-      right.x,      up.x,      forward.x,      cameraPos.x,
-      right.y,      up.y,      forward.y,      cameraPos.y,
-      right.z,      up.z,      forward.z,      cameraPos.z,
-      0,      0,      0,      1
-    ],
-    4,
-    4
-  );*/
-}
-
-function mat4RotateXYZ(out, src, x, y, z) {
-  mat4.rotateX(out, src, x);
-  mat4.rotateY(out, out, y);
-  mat4.rotateZ(out, out, z);
-  return out;
-}
 
 export class Camera {
   width = 400;
@@ -83,80 +30,6 @@ export class Camera {
     this.height = height;
     this.nearClippingPlaneDistance = nearClippingPlaneDistance;
     this.farClippingPlaneDistance = farClippingPlaneDistance;
-  }
-
-  webglPerspectiveProjectionMatrix(fovY, near, far) {
-    let aspectRatio = this.width / this.height,
-      top = tan(fovY / 2) * near,
-      bottom = -top,
-      right = top * aspectRatio,
-      left = -right;
-    let r_l = right - left,
-      t_b = top - bottom,
-      f_n = far - near;
-
-    return mat4.fromValues(
-      (2 * near) / r_l,
-      0,
-      0,
-      0,
-      0,
-      (2 * near) / t_b,
-      0,
-      0,
-      (right + left) / r_l,
-      (top + bottom) / t_b,
-      -(far + near) / f_n,
-      -1,
-      0,
-      0,
-      (-2 * far * near) / f_n,
-      0
-    );
-    /*return new Matrix(
-      [
-        (2 * near) / r_l,        0,        (right + left) / r_l,        0,
-        0,        (2 * near) / t_b,        (top + bottom) / t_b,        0,
-        0,        0,        -(far + near) / f_n,        (-2 * far * near) / f_n,
-        0,        0,        -1,        0
-      ],
-      4,
-      4
-    );*/
-  }
-
-  webglOrthographicProjectionMatrix(t, b, l, r, n, f) {
-    let r_l = r - l,
-      t_b = t - b,
-      f_n = f - n;
-    return mat4.fromValues(
-      2 / r_l,
-      0,
-      0,
-      0,
-      0,
-      2 / t_b,
-      0,
-      0,
-      0,
-      0,
-      -2 / f_n,
-      0,
-      -(r + l) / r_l,
-      -(t + b) / t_b,
-      -(f + n) / f_n,
-      1
-    );
-    /*return new Matrix(
-      [
-        2 / r_l, 0,        0,        -(r + l) / r_l,
-        0,        2 / t_b,        0,        -(t + b) / t_b,
-        0,        0,        -2 / f_n,        -(f + n) / f_n,
-        0,        0,        0,        1
-      ],
-      4,
-      4
-    );*/
   }
 
   initShader(scene, gl) {
@@ -187,7 +60,7 @@ export class Camera {
 
     let positionBuffers = scene.meshes.map(mesh => {
       var positionBuffer = gl.createBuffer();
-      let { vertices, faces } = mesh;
+      let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let position = faces.reduce((acc, f) => {
         let vA = vertices[f.A],
@@ -207,7 +80,7 @@ export class Camera {
     });
 
     let normalBuffers = scene.meshes.map(mesh => {
-      let { faces, normals } = mesh;
+      let {faces, normals} = mesh;
       var normalBuffer = gl.createBuffer();
 
       let normalPositions = faces.reduce((acc, f) => {
@@ -255,7 +128,7 @@ export class Camera {
 
     let positionBuffers = scene.meshes.map(mesh => {
       var positionBuffer = gl.createBuffer();
-      let { vertices, faces } = mesh;
+      let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let position = faces.reduce((acc, f) => {
         let vA = vertices[f.A],
@@ -351,8 +224,8 @@ export class Camera {
     // 计算 world to light space 矩阵
     // 计算平面投影矩阵（先要取得 l, r, t, b, n, f）
     // 绘制 shadowMap
-    let { meshes, lights } = scene;
-    let { direction: lightDirection } = lights[0];
+    let {meshes, lights} = scene;
+    let {direction: lightDirection} = lights[0];
     // TODO 计算实际边界
     let l2w = camera2World(
       mat4.create(),
@@ -360,7 +233,7 @@ export class Camera {
       lightDirection
     );
     let w2l = mat4.invert(mat4.create(), l2w); // 4 * 4
-    let orthProjMatrix = this.webglOrthographicProjectionMatrix(
+    let orthProjMatrix = webglOrthographicProjectionMatrix(
       6,
       -6,
       -6,
@@ -384,7 +257,7 @@ export class Camera {
 
     for (let i = 0; i < meshes.length; i++) {
       let mesh = meshes[i];
-      let { rotation, position } = mesh;
+      let {rotation, position} = mesh;
       let op_w2l_rot = mat4RotateXYZ(mat4.create(), op_w2l, ...rotation);
       let op_w2l_rot_trans = mat4.translate(op_w2l_rot, op_w2l_rot, position);
 
@@ -440,7 +313,7 @@ export class Camera {
       positionBuffers,
       normalBuffers
     } = this.webglConf;
-    let { targetTexture, op_w2l } = this.shadowMapConf;
+    let {targetTexture, op_w2l} = this.shadowMapConf;
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -461,8 +334,9 @@ export class Camera {
 
     let c2w = camera2World(mat4.create(), this.position, this.target); // 4 * 4
     let w2c = mat4.invert(mat4.create(), c2w);
-    let perspectiveProjectionMatrix = this.webglPerspectiveProjectionMatrix(
+    let perspectiveProjectionMatrix = webglPerspectiveProjectionMatrix(
       fov,
+      this.width / this.height,
       1,
       20
     );
@@ -470,7 +344,7 @@ export class Camera {
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
-      let { rotation, position } = mesh;
+      let {rotation, position} = mesh;
       let m = mat4.create();
       let mRo = mat4RotateXYZ(m, m, ...rotation);
       let mRotTrans = mat4.translate(mat4.create(), mRo, position);
