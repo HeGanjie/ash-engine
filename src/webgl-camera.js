@@ -1,5 +1,8 @@
-import { mat4, vec3 } from "gl-matrix";
-import { defaultColor, Ray } from "./engine";
+import {mat4, vec3} from "gl-matrix";
+import mainVertShader from './main-shader.vert'
+import mainFragShader from './main-shader.frag'
+import distantLightVertShader from './distant-light-shadow-map.vert'
+import distantLightFragShader from './distant-light-shadow-map.frag'
 
 let { PI, tan, floor, ceil, min, max } = Math;
 
@@ -157,52 +160,11 @@ export class Camera {
   }
 
   initShader(scene, gl) {
-    let vertexShaderSource = `
-      attribute vec4 a_position;
-      uniform mat4 u_matrix;
-      uniform mat4 u_shadowMapMatrix;
-      attribute vec3 a_normal;
-      uniform mat4 u_normalTransform;
-
-      varying vec3 v_normal;
-      varying vec3 v_shadowMapPos;
-
-      void main() {
-        gl_Position = u_matrix * a_position;
-        v_shadowMapPos = vec3(u_shadowMapMatrix * a_position);
-        // 将法向量传到片断着色器
-        v_normal = mat3(u_normalTransform) * a_normal;
-      }
-    `;
-    let fragmentShaderSource = `
-      precision mediump float;
-      varying vec3 v_normal;
-      uniform vec3 u_reverseLightDirection;
-
-      varying vec3 v_shadowMapPos; // xy -> uv, z -> depth
-      uniform sampler2D u_texShadowMap;
-
-      void main() {
-        vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5;
-        vec4 shadowMapColor = texture2D(u_texShadowMap, v_texcoord);
-        float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
-        float depthCalc = v_shadowMapPos.z;
-        float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
-
-        // 由于 v_normal 是插值出来的，和有可能不是单位向量，
-        // 可以用 normalize 将其单位化。
-        vec3 normal = normalize(v_normal);
-        float light = dot(normal, u_reverseLightDirection);
-        gl_FragColor = vec4(1, 1, 1, 1);
-        // 将颜色部分（不包括 alpha）和 光照相乘
-        gl_FragColor.rgb *= light * illuminated;
-      }
-    `;
-    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    var vertexShader = createShader(gl, gl.VERTEX_SHADER, mainVertShader);
     var fragmentShader = createShader(
       gl,
       gl.FRAGMENT_SHADER,
-      fragmentShaderSource
+      mainFragShader
     );
     var program = createProgram(gl, vertexShader, fragmentShader);
 
@@ -280,27 +242,11 @@ export class Camera {
   }
 
   initShadowMapShader(scene, gl) {
-    let vertexShaderSource = `
-      attribute vec4 a_position;
-      uniform mat4 u_matrix;
-
-      void main() {
-        gl_Position = u_matrix * a_position;
-      }
-    `;
-    let fragmentShaderSource = `
-      precision mediump float;
-
-      void main() {
-        gl_FragColor = vec4(gl_FragCoord.zzz, 1.0);
-        // gl_FragDepth = gl_FragCoord.z;
-      }
-    `;
-    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    var vertexShader = createShader(gl, gl.VERTEX_SHADER, distantLightVertShader);
     var fragmentShader = createShader(
       gl,
       gl.FRAGMENT_SHADER,
-      fragmentShaderSource
+      distantLightFragShader
     );
     var program = createProgram(gl, vertexShader, fragmentShader);
 
