@@ -1,4 +1,4 @@
-import _, { chunk } from "lodash";
+// import _, { chunk } from "lodash";
 import { mat4, vec3 } from "gl-matrix";
 
 // import weblas from "weblas";
@@ -51,22 +51,10 @@ export function webglPerspectiveProjectionMatrix(fovY, aspectRatio, near, far) {
     f_n = far - near;
 
   return mat4.fromValues(
-    (2 * near) / r_l,
-    0,
-    0,
-    0,
-    0,
-    (2 * near) / t_b,
-    0,
-    0,
-    (right + left) / r_l,
-    (top + bottom) / t_b,
-    -(far + near) / f_n,
-    -1,
-    0,
-    0,
-    (-2 * far * near) / f_n,
-    0
+    (2 * near) / r_l, 0, 0, 0,
+    0, (2 * near) / t_b, 0, 0,
+    (right + left) / r_l, (top + bottom) / t_b, -(far + near) / f_n, -1,
+    0, 0, (-2 * far * near) / f_n, 0
   );
   /*return new Matrix(
     [
@@ -85,22 +73,10 @@ export function webglOrthographicProjectionMatrix(t, b, l, r, n, f) {
     t_b = t - b,
     f_n = f - n;
   return mat4.fromValues(
-    2 / r_l,
-    0,
-    0,
-    0,
-    0,
-    2 / t_b,
-    0,
-    0,
-    0,
-    0,
-    -2 / f_n,
-    0,
-    -(r + l) / r_l,
-    -(t + b) / t_b,
-    -(f + n) / f_n,
-    1
+    2 / r_l, 0, 0, 0,
+    0, 2 / t_b, 0, 0,
+    0, 0, -2 / f_n, 0,
+    -(r + l) / r_l, -(t + b) / t_b, -(f + n) / f_n, 1
   );
   /*return new Matrix(
     [

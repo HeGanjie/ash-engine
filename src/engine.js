@@ -1,4 +1,4 @@
-import { mat4, vec3 } from "gl-matrix";
+import { vec3 } from "gl-matrix";
 import { mat4MultVec3 } from "./math";
 
 export const defaultColor = { r: 1, g: 1, b: 1 };

@@ -20,12 +20,7 @@ export class Camera {
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
 
-  constructor(
-    width,
-    height,
-    nearClippingPlaneDistance = 0.1,
-    farClippingPlaneDistance = 1000
-  ) {
+  constructor(width, height, nearClippingPlaneDistance = 0.1, farClippingPlaneDistance = 1000) {
     this.width = width;
     this.height = height;
     this.nearClippingPlaneDistance = nearClippingPlaneDistance;
@@ -44,18 +39,9 @@ export class Camera {
     var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     var normalLocation = gl.getAttribLocation(program, "a_normal");
     var matrixLocation = gl.getUniformLocation(program, "u_matrix");
-    var shadowMapMatrixLocation = gl.getUniformLocation(
-      program,
-      "u_shadowMapMatrix"
-    );
-    var normalTransformMatrixLocation = gl.getUniformLocation(
-      program,
-      "u_normalTransform"
-    );
-    var reverseLightDirectionLocation = gl.getUniformLocation(
-      program,
-      "u_reverseLightDirection"
-    );
+    var shadowMapMatrixLocation = gl.getUniformLocation(program, "u_shadowMapMatrix");
+    var normalTransformMatrixLocation = gl.getUniformLocation(program, "u_normalTransform");
+    var reverseLightDirectionLocation = gl.getUniformLocation(program, "u_reverseLightDirection");
     var texShadowMapLocation = gl.getUniformLocation(program, "u_texShadowMap");
 
     let positionBuffers = scene.meshes.map(mesh => {
@@ -71,11 +57,7 @@ export class Camera {
       }, []);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(position),
-        gl.STATIC_DRAW
-      );
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(position), gl.STATIC_DRAW);
       return positionBuffer;
     });
 
@@ -92,11 +74,7 @@ export class Camera {
       }, []);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(normalPositions),
-        gl.STATIC_DRAW
-      );
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normalPositions), gl.STATIC_DRAW);
       return normalBuffer;
     });
 
@@ -116,11 +94,7 @@ export class Camera {
 
   initShadowMapShader(scene, gl) {
     var vertexShader = createShader(gl, gl.VERTEX_SHADER, distantLightVertShader);
-    var fragmentShader = createShader(
-      gl,
-      gl.FRAGMENT_SHADER,
-      distantLightFragShader
-    );
+    var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, distantLightFragShader);
     var program = createProgram(gl, vertexShader, fragmentShader);
 
     var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
@@ -139,11 +113,7 @@ export class Camera {
       }, []);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(position),
-        gl.STATIC_DRAW
-      );
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(position), gl.STATIC_DRAW);
       return positionBuffer;
     });
 
@@ -191,13 +161,7 @@ export class Camera {
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 
     const attachmentPoint = gl.COLOR_ATTACHMENT0;
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      attachmentPoint,
-      gl.TEXTURE_2D,
-      targetTexture,
-      0
-    );
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, targetTexture, 0);
 
     this.shadowMapConf = {
       program,
@@ -233,14 +197,7 @@ export class Camera {
       lightDirection
     );
     let w2l = mat4.invert(mat4.create(), l2w); // 4 * 4
-    let orthProjMatrix = webglOrthographicProjectionMatrix(
-      6,
-      -6,
-      -6,
-      6,
-      1,
-      5.5
-    );
+    let orthProjMatrix = webglOrthographicProjectionMatrix(6, -6, -6, 6, 1, 5.5);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
@@ -274,14 +231,7 @@ export class Camera {
         let stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type)）
         // 每次迭代运行运动多少内存到下一个数据开始点
         let offset = 0; // 从缓冲起始位置开始读取
-        gl.vertexAttribPointer(
-          positionAttributeLocation,
-          size,
-          type,
-          normalize,
-          stride,
-          offset
-        );
+        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
       }
 
       let primitiveType = gl.TRIANGLES;
@@ -334,13 +284,8 @@ export class Camera {
 
     let c2w = camera2World(mat4.create(), this.position, this.target); // 4 * 4
     let w2c = mat4.invert(mat4.create(), c2w);
-    let perspectiveProjectionMatrix = webglPerspectiveProjectionMatrix(
-      fov,
-      this.width / this.height,
-      1,
-      20
-    );
-    let pp_w2c = mat4.multiply(mat4.create(), perspectiveProjectionMatrix, w2c);
+    let ppMatrix = webglPerspectiveProjectionMatrix(fov, this.width / this.height, 1, 20);
+    let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
@@ -372,14 +317,7 @@ export class Camera {
         let stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type)）
         // 每次迭代运行运动多少内存到下一个数据开始点
         let offset = 0; // 从缓冲起始位置开始读取
-        gl.vertexAttribPointer(
-          positionAttributeLocation,
-          size,
-          type,
-          normalize,
-          stride,
-          offset
-        );
+        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
       }
 
       {
@@ -392,14 +330,7 @@ export class Camera {
         let normalize = false; // normalize the data (convert from 0-255 to 0-1)
         let stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
         let offset = 0; // start at the beginning of the buffer
-        gl.vertexAttribPointer(
-          normalLocation,
-          size,
-          type,
-          normalize,
-          stride,
-          offset
-        );
+        gl.vertexAttribPointer(normalLocation, size, type, normalize, stride, offset);
       }
 
       let primitiveType = gl.TRIANGLES;
