@@ -3,8 +3,8 @@ import mainVertShader from './shader/main-shader.vert'
 import mainFragShader from './shader/main-shader.frag'
 import distantLightVertShader from './shader/distant-light-shadow-map.vert'
 import distantLightFragShader from './shader/distant-light-shadow-map.frag'
-import {createProgram, createShader} from "./webgl-utils";
 import {camera2World, mat4RotateXYZ, webglOrthographicProjectionMatrix, webglPerspectiveProjectionMatrix} from "./math";
+import {createProgram, loadShader} from "./webgl-utils";
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -28,13 +28,9 @@ export class Camera {
   }
 
   initShader(scene, gl) {
-    var vertexShader = createShader(gl, gl.VERTEX_SHADER, mainVertShader);
-    var fragmentShader = createShader(
-      gl,
-      gl.FRAGMENT_SHADER,
-      mainFragShader
-    );
-    var program = createProgram(gl, vertexShader, fragmentShader);
+    var vertexShader = loadShader(gl, mainVertShader, gl.VERTEX_SHADER);
+    var fragmentShader = loadShader(gl, mainFragShader, gl.FRAGMENT_SHADER);
+    var program = createProgram(gl, [vertexShader, fragmentShader]);
 
     var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     var normalLocation = gl.getAttribLocation(program, "a_normal");
@@ -93,9 +89,9 @@ export class Camera {
   }
 
   initShadowMapShader(scene, gl) {
-    var vertexShader = createShader(gl, gl.VERTEX_SHADER, distantLightVertShader);
-    var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, distantLightFragShader);
-    var program = createProgram(gl, vertexShader, fragmentShader);
+    var vertexShader = loadShader(gl, distantLightVertShader, gl.VERTEX_SHADER);
+    var fragmentShader = loadShader(gl, distantLightFragShader, gl.FRAGMENT_SHADER);
+    var program = createProgram(gl, [vertexShader, fragmentShader]);
 
     var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     var matrixLocation = gl.getUniformLocation(program, "u_matrix");

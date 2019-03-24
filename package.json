@@ -20,7 +20,7 @@
     "babel-preset-env": "^1.7.0",
     "babel-preset-stage-0": "^6.24.1",
     "parcel-bundler": "^1.10.3",
-    "parcel-plugin-shader-loader": "^1.0.0"
+    "parcel-plugin-glslify": "^0.1.0"
   },
   "dependencies": {
     "gl-matrix": "3.0.0",
