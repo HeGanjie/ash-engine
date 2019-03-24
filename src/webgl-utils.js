@@ -63,10 +63,10 @@ function error(msg) {
  * @param {WebGLRenderingContext} gl The WebGLRenderingContext to use.
  * @param {string} shaderSource The shader source.
  * @param {number} shaderType The type of shader.
- * @param {module:webgl-utils.ErrorCallback} opt_errorCallback callback for errors.
+ * @param {module:webgl-utils.ErrorCallback} [opt_errorCallback] callback for errors.
  * @return {WebGLShader} The created shader.
  */
-export function loadShader(gl, shaderSource, shaderType, opt_errorCallback = undefined) {
+export function loadShader(gl, shaderSource, shaderType, opt_errorCallback) {
   var errFn = opt_errorCallback || error;
   // Create the shader object
   var shader = gl.createShader(shaderType);
@@ -199,12 +199,12 @@ export function createProgramFromScripts(
  *
  * @param {WebGLRenderingContext} gl The WebGLRenderingContext
  *        to use.
- * @param {string[]} shaderSourcess Array of sources for the
+ * @param {string[]} shaderSources Array of sources for the
  *        shaders. The first is assumed to be the vertex shader,
  *        the second the fragment shader.
  * @param {string[]} [opt_attribs] An array of attribs names. Locations will be assigned by index if not passed in
  * @param {number[]} [opt_locations] The locations for the. A parallel array to opt_attribs letting you assign locations.
- * @param {module:webgl-utils.ErrorCallback} opt_errorCallback callback for errors. By default it just prints an error to the console
+ * @param {module:webgl-utils.ErrorCallback} [opt_errorCallback] callback for errors. By default it just prints an error to the console
  *        on error. If you want something else pass an callback. It's passed an error message.
  * @return {WebGLProgram} The created program.
  * @memberOf module:webgl-utils
@@ -632,12 +632,12 @@ export function createVAOFromBufferInfo(gl, programInfo, bufferInfo) {
  *
  * @param {WebGLRenderingContext} gl The WebGLRenderingContext
  *        to use.
- * @param {string[]} shaderSourcess Array of sources for the
+ * @param {string[]} shaderSources Array of sources for the
  *        shaders or ids. The first is assumed to be the vertex shader,
  *        the second the fragment shader.
  * @param {string[]} [opt_attribs] An array of attribs names. Locations will be assigned by index if not passed in
  * @param {number[]} [opt_locations] The locations for the. A parallel array to opt_attribs letting you assign locations.
- * @param {module:webgl-utils.ErrorCallback} opt_errorCallback callback for errors. By default it just prints an error to the console
+ * @param {module:webgl-utils.ErrorCallback} [opt_errorCallback] callback for errors. By default it just prints an error to the console
  *        on error. If you want something else pass an callback. It's passed an error message.
  * @return {module:webgl-utils.ProgramInfo} The created program.
  * @memberOf module:webgl-utils
@@ -648,7 +648,7 @@ export function createProgramInfo(
     var script = document.getElementById(source);
     return script ? script.text : source;
   });
-  var program = webglUtils.createProgramFromSources(gl, shaderSources, opt_attribs, opt_locations, opt_errorCallback);
+  var program = createProgramFromSources(gl, shaderSources, opt_attribs, opt_locations, opt_errorCallback);
   if (!program) {
     return null;
   }

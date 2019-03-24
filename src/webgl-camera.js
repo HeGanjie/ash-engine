@@ -4,7 +4,14 @@ import mainFragShader from './shader/main-shader.frag'
 import distantLightVertShader from './shader/distant-light-shadow-map.vert'
 import distantLightFragShader from './shader/distant-light-shadow-map.frag'
 import {camera2World, mat4RotateXYZ, webglOrthographicProjectionMatrix, webglPerspectiveProjectionMatrix} from "./math";
-import {createProgram, loadShader} from "./webgl-utils";
+import {
+  createAttributeSetters, createBufferInfoFromArrays,
+  createProgram, createProgramInfo,
+  createUniformSetters,
+  loadShader,
+  setAttributes, setBuffersAndAttributes,
+  setUniforms
+} from "./webgl-utils";
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -28,21 +35,11 @@ export class Camera {
   }
 
   initShader(scene, gl) {
-    var vertexShader = loadShader(gl, mainVertShader, gl.VERTEX_SHADER);
-    var fragmentShader = loadShader(gl, mainFragShader, gl.FRAGMENT_SHADER);
-    var program = createProgram(gl, [vertexShader, fragmentShader]);
+    var programInfo = createProgramInfo(gl, [mainVertShader, mainFragShader]);
 
-    var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-    var normalLocation = gl.getAttribLocation(program, "a_normal");
-    var matrixLocation = gl.getUniformLocation(program, "u_matrix");
-    var shadowMapMatrixLocation = gl.getUniformLocation(program, "u_shadowMapMatrix");
-    var normalTransformMatrixLocation = gl.getUniformLocation(program, "u_normalTransform");
-    var reverseLightDirectionLocation = gl.getUniformLocation(program, "u_reverseLightDirection");
-    var texShadowMapLocation = gl.getUniformLocation(program, "u_texShadowMap");
+    let bufferInfos = scene.meshes.map(mesh => {
+      let {faces, normals, vertices} = mesh;
 
-    let positionBuffers = scene.meshes.map(mesh => {
-      var positionBuffer = gl.createBuffer();
-      let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let position = faces.reduce((acc, f) => {
         let vA = vertices[f.A],
@@ -51,16 +48,6 @@ export class Camera {
         acc.push(...vA, ...vB, ...vC);
         return acc;
       }, []);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(position), gl.STATIC_DRAW);
-      return positionBuffer;
-    });
-
-    let normalBuffers = scene.meshes.map(mesh => {
-      let {faces, normals} = mesh;
-      var normalBuffer = gl.createBuffer();
-
       let normalPositions = faces.reduce((acc, f) => {
         let vAN = normals[f.AN],
           vBN = normals[f.BN],
@@ -69,22 +56,17 @@ export class Camera {
         return acc;
       }, []);
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normalPositions), gl.STATIC_DRAW);
-      return normalBuffer;
+      var arrays = {
+        position: { numComponents: 3, data: position, },
+        normal:   { numComponents: 3, data: normalPositions, },
+      };
+
+      return createBufferInfoFromArrays(gl, arrays);
     });
 
     this.webglConf = {
-      program,
-      positionAttributeLocation,
-      normalLocation,
-      matrixLocation,
-      shadowMapMatrixLocation,
-      normalTransformMatrixLocation,
-      reverseLightDirectionLocation,
-      texShadowMapLocation,
-      positionBuffers,
-      normalBuffers
+      programInfo,
+      bufferInfos
     };
   }
 
@@ -248,16 +230,8 @@ export class Camera {
     this.renderShadowMap(scene, gl);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     let {
-      program,
-      positionAttributeLocation,
-      normalLocation,
-      matrixLocation,
-      shadowMapMatrixLocation,
-      normalTransformMatrixLocation,
-      reverseLightDirectionLocation,
-      texShadowMapLocation,
-      positionBuffers,
-      normalBuffers
+      programInfo,
+      bufferInfos,
     } = this.webglConf;
     let {targetTexture, op_w2l} = this.shadowMapConf;
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
@@ -268,15 +242,19 @@ export class Camera {
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
 
-    gl.useProgram(program);
+    gl.useProgram(programInfo.program);
 
     // 设置光线方向
     let [distantLight] = scene.lights;
     let shadowLightDir = vec3.create();
     distantLight.getShadowLightDirection(shadowLightDir);
     vec3.normalize(shadowLightDir, shadowLightDir);
-    gl.uniform3fv(reverseLightDirectionLocation, shadowLightDir);
-    gl.uniform1i(texShadowMapLocation, 0);
+
+    let uniforms = {
+      u_reverseLightDirection: shadowLightDir,
+      u_texShadowMap: targetTexture
+    };
+    setUniforms(programInfo.uniformSetters, uniforms);
 
     let c2w = camera2World(mat4.create(), this.position, this.target); // 4 * 4
     let w2c = mat4.invert(mat4.create(), c2w);
@@ -294,45 +272,19 @@ export class Camera {
       let op_w2l_transform = mat4.multiply(mat4.create(), op_w2l, mRotTrans);
 
       let mNormalTrans = mat4.multiply(mat4.create(), w2c, mRo);
-      gl.uniformMatrix4fv(matrixLocation, false, pp_w2c_transform);
-      gl.uniformMatrix4fv(shadowMapMatrixLocation, false, op_w2l_transform);
-      gl.uniformMatrix4fv(
-        normalTransformMatrixLocation,
-        false,
-        mat4.transpose(mNormalTrans, mat4.invert(mNormalTrans, mNormalTrans))
-      );
 
-      {
-        gl.enableVertexAttribArray(positionAttributeLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffers[i]);
+      let uniforms = {
+        u_matrix: pp_w2c_transform,
+        u_shadowMapMatrix: op_w2l_transform,
+        u_normalTransform: mat4.transpose(mNormalTrans, mat4.invert(mNormalTrans, mNormalTrans))
+      };
+      setUniforms(programInfo.uniformSetters, uniforms);
 
-        // 告诉属性怎么从positionBuffer中读取数据 (ARRAY_BUFFER)
-        let size = 3; // 每次迭代运行提取两个单位数据
-        let type = gl.FLOAT; // 每个单位的数据类型是32位浮点型
-        let normalize = false; // 不需要归一化数据
-        let stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type)）
-        // 每次迭代运行运动多少内存到下一个数据开始点
-        let offset = 0; // 从缓冲起始位置开始读取
-        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-      }
+      let bufferInfo = bufferInfos[i];
+      setBuffersAndAttributes(gl, programInfo.attribSetters, bufferInfo);
 
-      {
-        gl.enableVertexAttribArray(normalLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffers[i]);
-
-        // Tell the attribute how to get data out of normalBuffer (ARRAY_BUFFER)
-        let size = 3; // 3 components per iteration
-        let type = gl.FLOAT; // the data is 32bit floating point values
-        let normalize = false; // normalize the data (convert from 0-255 to 0-1)
-        let stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
-        let offset = 0; // start at the beginning of the buffer
-        gl.vertexAttribPointer(normalLocation, size, type, normalize, stride, offset);
-      }
-
-      let primitiveType = gl.TRIANGLES;
-      let offset = 0;
-      let count = mesh.faces.length * 3;
-      gl.drawArrays(primitiveType, offset, count);
+      // Draw the geometry.
+      gl.drawArrays(gl.TRIANGLES, 0, bufferInfo.numElements);
     }
   }
 }
