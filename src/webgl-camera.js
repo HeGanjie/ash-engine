@@ -5,11 +5,9 @@ import distantLightVertShader from './shader/distant-light-shadow-map.vert'
 import distantLightFragShader from './shader/distant-light-shadow-map.frag'
 import {camera2World, mat4RotateXYZ, webglOrthographicProjectionMatrix, webglPerspectiveProjectionMatrix} from "./math";
 import {
-  createAttributeSetters, createBufferInfoFromArrays,
-  createProgram, createProgramInfo,
-  createUniformSetters,
-  loadShader,
-  setAttributes, setBuffersAndAttributes,
+  createBufferInfoFromArrays,
+  createProgramInfo,
+  setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
 
@@ -71,15 +69,9 @@ export class Camera {
   }
 
   initShadowMapShader(scene, gl) {
-    var vertexShader = loadShader(gl, distantLightVertShader, gl.VERTEX_SHADER);
-    var fragmentShader = loadShader(gl, distantLightFragShader, gl.FRAGMENT_SHADER);
-    var program = createProgram(gl, [vertexShader, fragmentShader]);
+    var programInfo = createProgramInfo(gl, [distantLightVertShader, distantLightFragShader]);
 
-    var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-    var matrixLocation = gl.getUniformLocation(program, "u_matrix");
-
-    let positionBuffers = scene.meshes.map(mesh => {
-      var positionBuffer = gl.createBuffer();
+    let bufferInfos = scene.meshes.map(mesh => {
       let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let position = faces.reduce((acc, f) => {
@@ -90,17 +82,17 @@ export class Camera {
         return acc;
       }, []);
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(position), gl.STATIC_DRAW);
-      return positionBuffer;
+      var arrays = {
+        position: { numComponents: 3, data: position, },
+      };
+
+      return createBufferInfoFromArrays(gl, arrays);
     });
 
     if (renderShadowMap) {
       this.shadowMapConf = {
-        program,
-        positionAttributeLocation,
-        matrixLocation,
-        positionBuffers
+        programInfo,
+        bufferInfos
       };
       return;
     }
@@ -142,10 +134,8 @@ export class Camera {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, targetTexture, 0);
 
     this.shadowMapConf = {
-      program,
-      positionAttributeLocation,
-      matrixLocation,
-      positionBuffers,
+      programInfo,
+      bufferInfos,
       targetTexture,
       frameBuffer
     };
@@ -156,10 +146,8 @@ export class Camera {
       this.initShadowMapShader(scene, gl);
     }
     let {
-      program,
-      positionAttributeLocation,
-      matrixLocation,
-      positionBuffers,
+      programInfo: shadowMapProgramInfo,
+      bufferInfos: shadowMapBufferInfos,
       targetTexture,
       frameBuffer
     } = this.shadowMapConf;
@@ -185,7 +173,7 @@ export class Camera {
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
 
-    gl.useProgram(program);
+    gl.useProgram(shadowMapProgramInfo.program);
 
     let op_w2l = mat4.multiply(mat4.create(), orthProjMatrix, w2l);
     this.shadowMapConf.op_w2l = op_w2l;
@@ -196,26 +184,16 @@ export class Camera {
       let op_w2l_rot = mat4RotateXYZ(mat4.create(), op_w2l, ...rotation);
       let op_w2l_rot_trans = mat4.translate(op_w2l_rot, op_w2l_rot, position);
 
-      gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
+      // gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
+      let uniforms = {
+        u_matrix: op_w2l_rot_trans,
+      };
+      setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
 
-      {
-        gl.enableVertexAttribArray(positionAttributeLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffers[i]);
+      let bufferInfo = shadowMapBufferInfos[i];
+      setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
 
-        // 告诉属性怎么从positionBuffer中读取数据 (ARRAY_BUFFER)
-        let size = 3; // 每次迭代运行提取两个单位数据
-        let type = gl.FLOAT; // 每个单位的数据类型是32位浮点型
-        let normalize = false; // 不需要归一化数据
-        let stride = 0; // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type)）
-        // 每次迭代运行运动多少内存到下一个数据开始点
-        let offset = 0; // 从缓冲起始位置开始读取
-        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-      }
-
-      let primitiveType = gl.TRIANGLES;
-      let offset = 0;
-      let count = mesh.faces.length * 3;
-      gl.drawArrays(primitiveType, offset, count);
+      gl.drawArrays(gl.TRIANGLES, 0, bufferInfo.numElements);
     }
   }
 
@@ -229,10 +207,7 @@ export class Camera {
     }
     this.renderShadowMap(scene, gl);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    let {
-      programInfo,
-      bufferInfos,
-    } = this.webglConf;
+    let { programInfo, bufferInfos } = this.webglConf;
     let {targetTexture, op_w2l} = this.shadowMapConf;
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -283,7 +258,6 @@ export class Camera {
       let bufferInfo = bufferInfos[i];
       setBuffersAndAttributes(gl, programInfo.attribSetters, bufferInfo);
 
-      // Draw the geometry.
       gl.drawArrays(gl.TRIANGLES, 0, bufferInfo.numElements);
     }
   }
