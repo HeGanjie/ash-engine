@@ -1,4 +1,3 @@
-// import _, { chunk } from "lodash";
 import { mat4, vec3 } from "gl-matrix";
 
 // import weblas from "weblas";
@@ -12,6 +11,7 @@ export function mat4MultVec3(outVec3, mat4, vec3, w = 1) {
   outVec3[1] = (mat4[1] * x + mat4[5] * y + mat4[9] * z + mat4[13] * w) / nextW;
   outVec3[2] =
     (mat4[2] * x + mat4[6] * y + mat4[10] * z + mat4[14] * w) / nextW;
+  return outVec3
 }
 
 export function camera2World(out, cameraPos, lookAt, up0 = vec3.fromValues(0, 1, 0)) {

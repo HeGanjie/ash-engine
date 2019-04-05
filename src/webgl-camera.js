@@ -10,11 +10,12 @@ import {
   setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
+import {flatMap, identity, sumBy, take} from 'lodash'
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
-const targetTextureWidth = 256;
-const targetTextureHeight = 256;
+const targetTextureWidth = 512;
+const targetTextureHeight = 512;
 const renderShadowMap = false;
 
 export class Camera {
@@ -39,24 +40,27 @@ export class Camera {
       let {faces, normals, vertices} = mesh;
 
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      let position = faces.reduce((acc, f) => {
-        let vA = vertices[f.A],
-          vB = vertices[f.B],
-          vC = vertices[f.C];
-        acc.push(...vA, ...vB, ...vC);
-        return acc;
-      }, []);
-      let normalPositions = faces.reduce((acc, f) => {
-        let vAN = normals[f.AN],
-          vBN = normals[f.BN],
-          vCN = normals[f.CN];
-        acc.push(...vAN, ...vBN, ...vCN);
-        return acc;
-      }, []);
-
       var arrays = {
-        position: { numComponents: 3, data: position, },
-        normal:   { numComponents: 3, data: normalPositions, },
+        position: {
+          numComponents: 3,
+          data: flatMap(faces, f => {
+            return flatMap(f.data, ({V}) => [...vertices[V]])
+          })
+        },
+        normal: {
+          numComponents: 3,
+          data: flatMap(faces, f => {
+            return flatMap(f.data, ({N}) => [...normals[N]])
+          }),
+        },
+        indices:  {
+          numComponents: 3,
+          data: flatMap(faces, (f, fIdx) => {
+            let {data, triangleIndices} = f
+            let offset = sumBy(take(faces, fIdx), f => f.data.length)
+            return triangleIndices.map(ti => ti + offset)
+          })
+        },
       };
 
       return createBufferInfoFromArrays(gl, arrays);
@@ -74,16 +78,21 @@ export class Camera {
     let bufferInfos = scene.meshes.map(mesh => {
       let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      let position = faces.reduce((acc, f) => {
-        let vA = vertices[f.A],
-          vB = vertices[f.B],
-          vC = vertices[f.C];
-        acc.push(...vA, ...vB, ...vC);
-        return acc;
-      }, []);
-
       var arrays = {
-        position: { numComponents: 3, data: position, },
+        position: {
+          numComponents: 3,
+          data: flatMap(faces, f => {
+            return flatMap(f.data, ({V}) => [...vertices[V]])
+          })
+        },
+        indices:  {
+          numComponents: 3,
+          data: flatMap(faces, (f, fIdx) => {
+            let {data, triangleIndices} = f;
+            let offset = sumBy(take(faces, fIdx), f => f.data.length)
+            return triangleIndices.map(ti => ti + offset)
+          })
+        },
       };
 
       return createBufferInfoFromArrays(gl, arrays);
@@ -193,7 +202,7 @@ export class Camera {
       let bufferInfo = shadowMapBufferInfos[i];
       setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
 
-      gl.drawArrays(gl.TRIANGLES, 0, bufferInfo.numElements);
+      gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }
   }
 
@@ -258,7 +267,7 @@ export class Camera {
       let bufferInfo = bufferInfos[i];
       setBuffersAndAttributes(gl, programInfo.attribSetters, bufferInfo);
 
-      gl.drawArrays(gl.TRIANGLES, 0, bufferInfo.numElements);
+      gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }
   }
 }

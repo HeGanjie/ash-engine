@@ -19,10 +19,11 @@
     "babel-plugin-transform-runtime": "^6.23.0",
     "babel-preset-env": "^1.7.0",
     "babel-preset-stage-0": "^6.24.1",
-    "parcel-bundler": "^1.10.3",
+    "parcel-bundler": "^1.12.3",
     "parcel-plugin-glslify": "^0.1.0"
   },
   "dependencies": {
+    "earcut": "^2.1.5",
     "gl-matrix": "3.0.0",
     "lodash": "^4.17.5",
     "stats.js": "0.17.0"

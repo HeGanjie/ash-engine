@@ -30,25 +30,17 @@ cubeMesh.normals.push(
   vec3.fromValues(0, 0, 1), // 后
   vec3.fromValues(0, 0, -1), // 前
   vec3.fromValues(1, 0, 0), // 右
-  vec3.fromValues(-1, 0, 1), // 左
+  vec3.fromValues(-1, 0, 0), // 左
   vec3.fromValues(0, 1, 0), // 上
   vec3.fromValues(0, -1, 0) // 下
 );
 cubeMesh.faces.push(
-  { A: 0, B: 2, C: 1, AN: 0, BN: 0, CN: 0 },
-  { A: 1, B: 2, C: 3, AN: 0, BN: 0, CN: 0 },
-  { A: 4, B: 5, C: 7, AN: 1, BN: 1, CN: 1 },
-  { A: 4, B: 7, C: 6, AN: 1, BN: 1, CN: 1 },
-
-  { A: 5, B: 4, C: 0, AN: 4, BN: 4, CN: 4 },
-  { A: 5, B: 0, C: 1, AN: 4, BN: 4, CN: 4 },
-  { A: 6, B: 7, C: 2, AN: 5, BN: 5, CN: 5 },
-  { A: 7, B: 3, C: 2, AN: 5, BN: 5, CN: 5 },
-
-  { A: 0, B: 4, C: 6, AN: 3, BN: 3, CN: 3 },
-  { A: 0, B: 6, C: 2, AN: 3, BN: 3, CN: 3 },
-  { A: 5, B: 1, C: 3, AN: 2, BN: 2, CN: 2 },
-  { A: 5, B: 3, C: 7, AN: 2, BN: 2, CN: 2 }
+  { data:  [{V: 0, N: 0}, {V: 2, N: 0}, {V: 3, N: 0}, {V: 1, N: 0}] },
+  { data:  [{V: 4, N: 1}, {V: 5, N: 1}, {V: 7, N: 1}, {V: 6, N: 1}] },
+  { data:  [{V: 1, N: 2}, {V: 3, N: 2}, {V: 7, N: 2}, {V: 5, N: 2}] },
+  { data:  [{V: 0, N: 3}, {V: 4, N: 3}, {V: 6, N: 3}, {V: 2, N: 3}] },
+  { data:  [{V: 0, N: 4}, {V: 1, N: 4}, {V: 5, N: 4}, {V: 4, N: 4}] },
+  { data:  [{V: 2, N: 5}, {V: 6, N: 5}, {V: 7, N: 5}, {V: 3, N: 5}] },
 );
 cubeMesh.verticesColor.push(
   { r: 1, g: 1, b: 1 },
@@ -72,8 +64,7 @@ planeMesh.vertices.push(
 planeMesh.position = vec3.fromValues(0, -2, 0);
 planeMesh.normals.push(vec3.fromValues(0, 1, 0));
 planeMesh.faces.push(
-  { A: 0, B: 2, C: 1, AN: 0, BN: 0, CN: 0 },
-  { A: 1, B: 2, C: 3, AN: 0, BN: 0, CN: 0 }
+  { data:  [{V: 0, N: 0}, {V: 2, N: 0}, {V: 3, N: 0}, {V: 1, N: 0}] },
 );
 planeMesh.verticesColor.push(
   { r: 0.5, g: 0.5, b: 0.5 },
