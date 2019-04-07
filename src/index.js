@@ -1,7 +1,9 @@
 import { mat4, vec3 } from "gl-matrix";
-import { Mesh, Scene, DistantLight, PointLight } from "./engine";
+import { Mesh, Scene } from "./engine";
 import { Camera } from "./webgl-camera";
 import Stats from "stats.js";
+import {DistantLight} from "./distant-light";
+import {PointLight} from "./point-light";
 
 var stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
