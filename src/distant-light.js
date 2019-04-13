@@ -139,7 +139,7 @@ export class DistantLight extends Light {
 
       // gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
       let uniforms = {
-        u_matrix: op_w2l_rot_trans,
+        u_mat4_op_w2l_transform: op_w2l_rot_trans,
       };
       setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
 

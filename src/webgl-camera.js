@@ -113,12 +113,12 @@ export class Camera {
       let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mRotTrans);
       let op_w2l_transform = mat4.multiply(mat4.create(), op_w2l, mRotTrans);
 
-      let mNormalTrans = mat4.multiply(mat4.create(), w2c, mRo);
+      let m4_w2c_rot = mat4.multiply(mat4.create(), w2c, mRo);
 
       let uniforms = {
-        u_matrix: pp_w2c_transform,
-        u_shadowMapMatrix: op_w2l_transform,
-        u_normalTransform: mat4.transpose(mNormalTrans, mat4.invert(mNormalTrans, mNormalTrans))
+        u_mat4_pp_w2c_transform: pp_w2c_transform,
+        u_mat4_op_w2l_transform: op_w2l_transform,
+        u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot))
       };
       setUniforms(programInfo.uniformSetters, uniforms);
 
