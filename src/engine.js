@@ -1,5 +1,4 @@
 import { vec3, mat4 } from "gl-matrix";
-import { mat4MultVec3 } from "./math";
 import {flatMap, isEmpty} from 'lodash'
 import earcut from 'earcut'
 
@@ -47,7 +46,7 @@ export class Mesh {
         let needRotateUpVec = 0.95 < Math.abs(vec3.dot(faceNormal, xzPanelNormal));
         let up = needRotateUpVec ? vec3.fromValues(0, 0, -1) : vec3.fromValues(0, 1, 0);
         let w2c = mat4.lookAt(mat4.create(), faceNormal, vec3Zero, up)
-        vPos = flatMap(f.data, ({V}) => [...mat4MultVec3(vec3.create(), w2c, vertices[V])]);
+        vPos = flatMap(f.data, ({V}) => [...vec3.transformMat4(vec3.create(), vertices[V], w2c)]);
       } else {
         vPos = flatMap(f.data, ({V}) => [...vertices[V]]);
       }

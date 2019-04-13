@@ -1,7 +1,6 @@
-import {mat4, vec3} from "gl-matrix";
+import {mat4, quat, vec3} from "gl-matrix";
 import mainVertShader from './shader/main-shader.vert'
 import mainFragShader from './shader/main-shader.frag'
-import {camera2World, mat4RotateXYZ, webglPerspectiveProjectionMatrix} from "./math";
 import {
   createBufferInfoFromArrays,
   createProgramInfo,
@@ -98,16 +97,14 @@ export class Camera {
     };
     setUniforms(programInfo.uniformSetters, uniforms);
 
-    let c2w = camera2World(mat4.create(), this.position, this.target); // 4 * 4
-    let w2c = mat4.invert(mat4.create(), c2w);
-    let ppMatrix = webglPerspectiveProjectionMatrix(fov, this.width / this.height, 1, 20);
+    let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
+    let ppMatrix = mat4.perspective(mat4.create(), fov, this.width / this.height, 1, 20);
     let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position} = mesh;
-      let m = mat4.create();
-      let mRo = mat4RotateXYZ(m, m, ...rotation);
+      let mRo = mat4.fromQuat(mat4.create(), quat.fromEuler(quat.create(), ...rotation));
       let mRotTrans = mat4.translate(mat4.create(), mRo, position);
 
       let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mRotTrans);

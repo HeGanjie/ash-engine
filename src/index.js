@@ -96,11 +96,12 @@ let camera = new Camera(canvas.width, canvas.height);
 camera.position = vec3.fromValues(0, 2, 3);
 camera.target = vec3.fromValues(0, -1, 0);
 
+const radToAngle = 180 / Math.PI;
 function drawingLoop() {
   stats.begin();
   camera.render(scene, ctx);
-  cubeMesh.rotation[0] += 0.01;
-  cubeMesh.rotation[1] += 0.01;
+  cubeMesh.rotation[0] += 0.01 * radToAngle;
+  cubeMesh.rotation[1] += 0.01 * radToAngle;
   stats.end();
   requestAnimationFrame(drawingLoop);
 }

@@ -1,5 +1,4 @@
-import {mat4, vec3} from "gl-matrix";
-import {camera2World, mat4MultVec3, mat4RotateXYZ, webglOrthographicProjectionMatrix} from "./math";
+import {mat4, vec3, quat} from "gl-matrix";
 import {createBufferInfoFromArrays, createProgramInfo, setBuffersAndAttributes, setUniforms} from "./webgl-utils";
 import distantLightVertShader from "./shader/distant-light-shadow-map.vert";
 import distantLightFragShader from "./shader/distant-light-shadow-map.frag";
@@ -13,7 +12,7 @@ export class DistantLight extends Light {
   constructor(l2w, color, intensity) {
     super(l2w, color, intensity);
     this.direction = vec3.fromValues(0, 0, -1);
-    mat4MultVec3(this.direction, l2w, this.direction);
+    vec3.transformMat4(this.direction, this.direction, l2w)
   }
 
   getShadowLightDirection(out, pHit) {
@@ -110,13 +109,11 @@ export class DistantLight extends Light {
     let {meshes, lights} = scene;
     let {direction: lightDirection} = this;
     // TODO 计算实际边界
-    let l2w = camera2World(
-      mat4.create(),
+    let w2l = mat4.lookAt(mat4.create(),
       vec3.scale(vec3.create(), lightDirection, -3),
-      lightDirection
-    );
-    let w2l = mat4.invert(mat4.create(), l2w); // 4 * 4
-    let orthProjMatrix = webglOrthographicProjectionMatrix(6, -6, -6, 6, 1, 5.5);
+      lightDirection,
+      vec3.fromValues(0, 1, 0));
+    let orthProjMatrix = mat4.ortho(mat4.create(), -6, 6, -6, 6, 1, 5.5);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
@@ -134,8 +131,8 @@ export class DistantLight extends Light {
     for (let i = 0; i < meshes.length; i++) {
       let mesh = meshes[i];
       let {rotation, position} = mesh;
-      let op_w2l_rot = mat4RotateXYZ(mat4.create(), op_w2l, ...rotation);
-      let op_w2l_rot_trans = mat4.translate(op_w2l_rot, op_w2l_rot, position);
+      let mRotTran = mat4.fromRotationTranslation(mat4.create(), quat.fromEuler(quat.create(), ...rotation), position);
+      let op_w2l_rot_trans = mat4.multiply(mRotTran, op_w2l, mRotTran);
 
       // gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
       let uniforms = {
