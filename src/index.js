@@ -78,7 +78,7 @@ planeMesh.verticesColor.push(
 let distantLight = new DistantLight(
   mat4.fromXRotation(mat4.create(), (-90 * Math.PI) / 180),
   { r: 1, g: 1, b: 1 },
-  15
+  20
 );
 let pointLight1 = new PointLight(
   mat4.fromTranslation(mat4.create(), [-2, 2, 0]),

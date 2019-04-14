@@ -1,4 +1,4 @@
-import {mat4, vec3, quat} from "gl-matrix";
+import {mat4, quat, vec3} from "gl-matrix";
 import {createBufferInfoFromArrays, createProgramInfo, setBuffersAndAttributes, setUniforms} from "./webgl-utils";
 import distantLightVertShader from "./shader/distant-light-shadow-map.vert";
 import distantLightFragShader from "./shader/distant-light-shadow-map.frag";
@@ -134,7 +134,6 @@ export class DistantLight extends Light {
       let mRotTran = mat4.fromRotationTranslation(mat4.create(), quat.fromEuler(quat.create(), ...rotation), position);
       let op_w2l_rot_trans = mat4.multiply(mRotTran, op_w2l, mRotTran);
 
-      // gl.uniformMatrix4fv(matrixLocation, false, op_w2l_rot_trans);
       let uniforms = {
         u_mat4_op_w2l_transform: op_w2l_rot_trans,
       };

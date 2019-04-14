@@ -1,22 +1,50 @@
 precision mediump float;
-varying vec3 v_normal;
-uniform vec3 u_reverseLightDirection;
+precision mediump int;
 
-varying vec3 v_shadowMapPos; // xy -> uv, z -> depth
+struct DistantLight {
+    vec3 direction;
+    vec3 color;
+    float intensity;
+    mat4 op_w2l_transform;
+    vec3 reverseLightDirection;
+//    int indexOfLights;
+};
+/*struct PointLight {
+    vec3 position;
+    vec3 color;
+    float intensity;
+};*/
+uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
+//uniform PointLight u_pointLights[NUM_POINT_LIGHT];
+uniform float u_albedoDivPI;
 uniform sampler2D u_texShadowMap;
 
-void main() {
-    vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5;
-    vec4 shadowMapColor = texture2D(u_texShadowMap, v_texcoord);
-    float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
-    float depthCalc = v_shadowMapPos.z;
-    float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
+varying vec3 v_normal;
+varying vec3 v_color;
+varying vec3 v_shadowMapPosArr[NUM_DISTANT_LIGHT]; // xy -> uv, z -> depth
 
-    // 由于 v_normal 是插值出来的，和有可能不是单位向量，
-    // 可以用 normalize 将其单位化。
+void main() {
+    gl_FragColor = vec4(0, 0, 0, 1);
+
+    // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
     vec3 normal = normalize(v_normal);
-    float light = dot(normal, u_reverseLightDirection);
-    gl_FragColor = vec4(1, 1, 1, 1);
-    // 将颜色部分（不包括 alpha）和 光照相乘
-    gl_FragColor.rgb *= light * illuminated;
+
+    for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
+        DistantLight u_distantLight = u_distantLights[i];
+        vec3 v_shadowMapPos = v_shadowMapPosArr[i];
+
+        vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
+        //sampler2D texShadowMap = u_texShadowMaps[u_distantLight.indexOfLights];
+        vec4 shadowMapColor = texture2D(u_texShadowMap, v_texcoord);
+        float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
+        float depthCalc = v_shadowMapPos.z;
+        float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
+
+        gl_FragColor.rgb += illuminated
+            * u_albedoDivPI
+            * u_distantLight.intensity
+            * max(0.0, dot(normal, u_distantLight.reverseLightDirection))
+            * v_color
+            * u_distantLight.color;
+    }
 }

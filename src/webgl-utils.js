@@ -33,7 +33,7 @@
 
 "use strict";
 
-var topWindow = this;
+var topWindow = global;
 
 /**
  * Wrapped logging function.

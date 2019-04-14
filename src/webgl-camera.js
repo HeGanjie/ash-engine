@@ -1,14 +1,10 @@
 import {mat4, quat, vec3} from "gl-matrix";
 import mainVertShader from './shader/main-shader.vert'
 import mainFragShader from './shader/main-shader.frag'
-import {
-  createBufferInfoFromArrays,
-  createProgramInfo,
-  setBuffersAndAttributes,
-  setUniforms
-} from "./webgl-utils";
-import {flatMap, identity, sumBy, take} from 'lodash'
+import {createBufferInfoFromArrays, createProgramInfo, setBuffersAndAttributes, setUniforms} from "./webgl-utils";
+import {flatMap, sumBy, take} from 'lodash'
 import {renderShadowMap} from "./constants";
+import {DistantLight} from "./distant-light";
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -28,10 +24,16 @@ export class Camera {
   }
 
   initShader(scene, gl) {
-    let programInfo = createProgramInfo(gl, [mainVertShader, mainFragShader]);
+    let numDistantLightCount = scene.lights.filter(l => l instanceof DistantLight).length;
+    const shaderSources = [mainVertShader, mainFragShader]
+      .map(src => {
+        return src.replace(/NUM_DISTANT_LIGHT/g, numDistantLightCount)
+          .replace(/NUM_LIGHTS/g, scene.lights.length)
+      });
+    let programInfo = createProgramInfo(gl, shaderSources);
 
     let bufferInfos = scene.meshes.map(mesh => {
-      let {faces, normals, vertices} = mesh;
+      let {faces, normals, vertices, verticesColor} = mesh;
 
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
@@ -42,6 +44,13 @@ export class Camera {
         normal: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({N}) => [...normals[N]])),
+        },
+        color: {
+          numComponents: 3,
+          data: flatMap(faces, f => flatMap(f.data, ({V}) => {
+            const color = verticesColor[V];
+            return [color.r, color.g, color.b]
+          })),
         },
         indices:  {
           numComponents: 3,
@@ -63,8 +72,8 @@ export class Camera {
 
   render(scene, gl, fov = PI / 2) {
     // TODO implement point light and point light shadow map
-    // TODO using struct to store light info
-    let shadowMapInfos = scene.lights.map(l => l.renderShadowMap(scene, gl));
+    // TODO support multi distant light (render to single texture)
+    let shadowMapInfos = scene.lights.map(l => ({ light: l, ...l.renderShadowMap(scene, gl) }));
     if (renderShadowMap) {
       return
     }
@@ -74,7 +83,6 @@ export class Camera {
       this.initShader(scene, gl);
     }
     let { programInfo, bufferInfos } = this.webglConf;
-    let {targetTexture, op_w2l} = shadowMapInfos[0];
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -85,16 +93,18 @@ export class Camera {
 
     gl.useProgram(programInfo.program);
 
-    // 设置光线方向
-    let [distantLight] = scene.lights;
-    let shadowLightDir = vec3.create();
-    distantLight.getShadowLightDirection(shadowLightDir);
-    vec3.normalize(shadowLightDir, shadowLightDir);
-
-    let uniforms = {
-      u_reverseLightDirection: shadowLightDir,
-      u_texShadowMap: targetTexture
-    };
+    const uniformOfLights = shadowMapInfos
+      .filter(info => info.light instanceof DistantLight)
+      .reduce((acc, curr, idx) => {
+        let {direction, color, intensity} = curr.light;
+        acc[`u_distantLights[${idx}].direction`] = direction;
+        acc[`u_distantLights[${idx}].color`] = vec3.fromValues(color.r, color.g, color.b);
+        acc[`u_distantLights[${idx}].intensity`] = intensity;
+        acc[`u_distantLights[${idx}].reverseLightDirection`] = vec3.scale(vec3.create(), direction, -1);
+        // acc[`u_distantLights[${idx}].indexOfLights`] = idx;
+        return acc
+      }, {});
+    let uniforms = Object.assign({ u_texShadowMap: shadowMapInfos[0].targetTexture }, uniformOfLights);
     setUniforms(programInfo.uniformSetters, uniforms);
 
     let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
@@ -103,20 +113,25 @@ export class Camera {
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
-      let {rotation, position} = mesh;
+      let {rotation, position, albedo} = mesh;
       let mRo = mat4.fromQuat(mat4.create(), quat.fromEuler(quat.create(), ...rotation));
       let mRotTrans = mat4.translate(mat4.create(), mRo, position);
 
       let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mRotTrans);
-      let op_w2l_transform = mat4.multiply(mat4.create(), op_w2l, mRotTrans);
 
       let m4_w2c_rot = mat4.multiply(mat4.create(), w2c, mRo);
 
-      let uniforms = {
-        u_mat4_pp_w2c_transform: pp_w2c_transform,
-        u_mat4_op_w2l_transform: op_w2l_transform,
-        u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot))
-      };
+      let uniforms = Object.assign({
+          u_albedoDivPI: albedo / Math.PI,
+          u_mat4_pp_w2c_transform: pp_w2c_transform,
+          u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
+        }, shadowMapInfos
+        .filter(info => info.light instanceof DistantLight)
+        .reduce((acc, curr, idx) => {
+          acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.op_w2l, mRotTrans);
+          return acc
+        }, {})
+      );
       setUniforms(programInfo.uniformSetters, uniforms);
 
       let bufferInfo = bufferInfos[i];
