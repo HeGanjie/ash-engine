@@ -1,7 +1,7 @@
 import {mat4, quat, vec3} from "gl-matrix";
 import mainVertShader from './shader/main-shader.vert'
 import mainFragShader from './shader/main-shader.frag'
-import {createBufferInfoFromArrays, createProgramInfo, setBuffersAndAttributes, setUniforms} from "./webgl-utils";
+import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from "./webgl-utils";
 import {flatMap, sumBy, take} from 'lodash'
 import {renderShadowMap} from "./constants";
 import {DistantLight} from "./distant-light";
@@ -66,7 +66,8 @@ export class Camera {
 
     this.webglConf = {
       programInfo,
-      bufferInfos
+      bufferInfos,
+      vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi))
     };
   }
 
@@ -82,7 +83,7 @@ export class Camera {
     if (!this.webglConf) {
       this.initShader(scene, gl);
     }
-    let { programInfo, bufferInfos } = this.webglConf;
+    let { programInfo, bufferInfos, vaos } = this.webglConf;
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -135,7 +136,7 @@ export class Camera {
       setUniforms(programInfo.uniformSetters, uniforms);
 
       let bufferInfo = bufferInfos[i];
-      setBuffersAndAttributes(gl, programInfo.attribSetters, bufferInfo);
+      gl.bindVertexArray(vaos[i]);
 
       gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }

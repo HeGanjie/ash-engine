@@ -1,5 +1,11 @@
 import {mat4, quat, vec3} from "gl-matrix";
-import {createBufferInfoFromArrays, createProgramInfo, setBuffersAndAttributes, setUniforms} from "./webgl-utils";
+import {
+  createBufferInfoFromArrays,
+  createProgramInfo,
+  createVAOFromBufferInfo,
+  setBuffersAndAttributes,
+  setUniforms
+} from "./webgl-utils";
 import distantLightVertShader from "./shader/distant-light-shadow-map.vert";
 import distantLightFragShader from "./shader/distant-light-shadow-map.frag";
 import {flatMap, sumBy, take} from 'lodash'
@@ -45,7 +51,8 @@ export class DistantLight extends Light {
     if (renderShadowMap) {
       this.shadowMapConf = {
         programInfo,
-        bufferInfos
+        bufferInfos,
+        vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi))
       };
       return;
     }
@@ -90,6 +97,7 @@ export class DistantLight extends Light {
       programInfo,
       bufferInfos,
       targetTexture,
+      vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
       frameBuffer
     };
   }
@@ -101,6 +109,7 @@ export class DistantLight extends Light {
     let {
       programInfo: shadowMapProgramInfo,
       bufferInfos: shadowMapBufferInfos,
+      vaos: shadowMapVaos,
       frameBuffer
     } = this.shadowMapConf;
     // 计算 world to light space 矩阵
@@ -140,7 +149,7 @@ export class DistantLight extends Light {
       setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
 
       let bufferInfo = shadowMapBufferInfos[i];
-      setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
+      gl.bindVertexArray(shadowMapVaos[i]);
 
       gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }
