@@ -1,4 +1,6 @@
-attribute vec4 a_position;
+#version 300 es
+
+in vec4 a_position;
 
 uniform mat4 u_mat4_op_w2l_transform;
 

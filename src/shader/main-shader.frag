@@ -1,3 +1,5 @@
+#version 300 es
+
 precision mediump float;
 precision mediump int;
 
@@ -19,12 +21,14 @@ uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform float u_albedoDivPI;
 uniform sampler2D u_texShadowMap;
 
-varying vec3 v_normal;
-varying vec3 v_color;
-varying vec3 v_shadowMapPosArr[NUM_DISTANT_LIGHT]; // xy -> uv, z -> depth
+in vec3 v_normal;
+in vec3 v_color;
+in vec3 v_shadowMapPosArr[NUM_DISTANT_LIGHT]; // xy -> uv, z -> depth
+
+out vec4 glFragColor;
 
 void main() {
-    gl_FragColor = vec4(0, 0, 0, 1);
+    glFragColor = vec4(0, 0, 0, 1);
 
     // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
     vec3 normal = normalize(v_normal);
@@ -35,12 +39,12 @@ void main() {
 
         vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
         //sampler2D texShadowMap = u_texShadowMaps[u_distantLight.indexOfLights];
-        vec4 shadowMapColor = texture2D(u_texShadowMap, v_texcoord);
+        vec4 shadowMapColor = texture(u_texShadowMap, v_texcoord);
         float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
         float depthCalc = v_shadowMapPos.z;
         float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
 
-        gl_FragColor.rgb += illuminated
+        glFragColor.rgb += illuminated
             * u_albedoDivPI
             * u_distantLight.intensity
             * max(0.0, dot(normal, u_distantLight.reverseLightDirection))
