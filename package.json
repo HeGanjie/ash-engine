@@ -2,13 +2,14 @@
   "name": "ash-engine",
   "version": "0.0.1",
   "description": "3d game engine dev learning project",
+  "license": "ISC",
+  "author": "heganjie",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "parcel -p 8080 watch index.html"
+    "dev": "parcel -p 8080 watch index.html",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "heganjie",
-  "license": "ISC",
+  "dependencies": {},
   "devDependencies": {
     "@types/gl-matrix": "2.4.5",
     "@types/lodash": "4.14.120",
@@ -19,13 +20,11 @@
     "babel-plugin-transform-runtime": "^6.23.0",
     "babel-preset-env": "^1.7.0",
     "babel-preset-stage-0": "^6.24.1",
-    "parcel-bundler": "^1.12.3",
-    "parcel-plugin-glslify": "^0.1.0"
-  },
-  "dependencies": {
     "earcut": "^2.1.5",
     "gl-matrix": "3.0.0",
     "lodash": "^4.17.5",
+    "parcel-bundler": "^1.12.3",
+    "parcel-plugin-glslify": "^0.1.0",
     "stats.js": "0.17.0"
   }
 }

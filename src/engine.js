@@ -1,22 +1,11 @@
 import { vec3, mat4 } from "gl-matrix";
-import {flatMap, isEmpty} from 'lodash'
+import {flatMap, isEmpty, orderBy} from 'lodash'
 import earcut from 'earcut'
+import {DistantLight} from "./distant-light";
 
 window.earcut = earcut
 
 export const defaultColor = { r: 1, g: 1, b: 1 };
-
-export class Light {
-  lightToWorld = null;
-  color = null;
-  intensity = 1;
-
-  constructor(l2w, color, intensity) {
-    this.lightToWorld = l2w;
-    this.color = color;
-    this.intensity = intensity;
-  }
-}
 
 export class Mesh {
   position = vec3.create();
@@ -27,6 +16,7 @@ export class Mesh {
   faces = [];
   albedo = 0.18;
   name = null;
+  // Material
 
   constructor(name) {
     this.name = name;
@@ -63,7 +53,7 @@ export class Scene {
   lights = null;
   constructor(meshes, lights) {
     this.meshes = meshes;
-    this.lights = lights;
+    this.lights = orderBy(lights, l => l instanceof DistantLight ? 0 : 1);
     meshes.forEach(m => m.triangulation())
   }
 }

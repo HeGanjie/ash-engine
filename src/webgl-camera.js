@@ -5,6 +5,8 @@ import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, 
 import {flatMap, sumBy, take} from 'lodash'
 import {renderShadowMap} from "./constants";
 import {DistantLight} from "./distant-light";
+import ShadowMapRenderer from "./shadow-map-renderer";
+import {PointLight} from "./point-light";
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -15,19 +17,24 @@ export class Camera {
   target = vec3.create();
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
+  shadowMapRenderer = null;
 
   constructor(width, height, nearClippingPlaneDistance = 0.1, farClippingPlaneDistance = 1000) {
     this.width = width;
     this.height = height;
     this.nearClippingPlaneDistance = nearClippingPlaneDistance;
     this.farClippingPlaneDistance = farClippingPlaneDistance;
+    this.shadowMapRenderer = new ShadowMapRenderer()
   }
 
   initShader(scene, gl) {
     let numDistantLightCount = scene.lights.filter(l => l instanceof DistantLight).length;
+    let numPointLightCount = scene.lights.filter(l => l instanceof PointLight).length;
     const shaderSources = [mainVertShader, mainFragShader]
       .map(src => {
-        return src.replace(/NUM_DISTANT_LIGHT/g, numDistantLightCount)
+        return src
+          .replace(/NUM_DISTANT_LIGHT/g, numDistantLightCount)
+          .replace(/NUM_POINT_LIGHT/g, numPointLightCount)
           .replace(/NUM_LIGHTS/g, scene.lights.length)
       });
     let programInfo = createProgramInfo(gl, shaderSources);
@@ -74,7 +81,8 @@ export class Camera {
   render(scene, gl, fov = PI / 2) {
     // TODO implement point light and point light shadow map
     // TODO support multi distant light (render to single texture)
-    let shadowMapInfos = scene.lights.map(l => ({ light: l, ...l.renderShadowMap(scene, gl) }));
+    // let shadowMapInfos = scene.lights.map(l => ({ light: l, ...l.renderShadowMap(scene, gl) }));
+    this.shadowMapRenderer.renderShadowMap(scene, gl);
     if (renderShadowMap) {
       return
     }

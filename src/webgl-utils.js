@@ -378,10 +378,10 @@ export function createUniformSetters(gl, program) {
       break;
     }
     var name = uniformInfo.name;
-    // remove the array suffix.
-    if (name.substr(-3) === "[0]") {
-      name = name.substr(0, name.length - 3);
-    }
+    // remove the array suffix. HeGanjie changed
+    // if (name.substr(-3) === "[0]") {
+    //   name = name.substr(0, name.length - 3);
+    // }
     var setter = createUniformSetter(program, uniformInfo);
     uniformSetters[name] = setter;
   }
@@ -476,6 +476,23 @@ export function setUniforms(setters, values) {
   });
 }
 
+function intAttribSetter(gl, index) {
+  return function(b) {
+    if (b.value) {
+      gl.disableVertexAttribArray(index);
+      gl.vertexAttrib4iv(index, b.value);
+    } else {
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
+      gl.enableVertexAttribArray(index);
+      gl.vertexAttribIPointer(
+        index, b.numComponents || b.size, b.type || gl.INT, b.stride || 0, b.offset || 0);
+      if (b.divisor !== undefined) {
+        gl.vertexAttribDivisor(index, b.divisor);
+      }
+    }
+  };
+}
+
 /**
  * Creates setter functions for all attributes of a shader
  * program. You can pass this to {@link module:webgl-utils.setBuffersAndAttributes} to set all your buffers and attributes.
@@ -505,7 +522,9 @@ export function createAttributeSetters(gl, program) {
       break;
     }
     var index = gl.getAttribLocation(program, attribInfo.name);
-    attribSetters[attribInfo.name] = createAttribSetter(index);
+    attribSetters[attribInfo.name] = attribInfo.type === gl.INT
+      ? intAttribSetter(gl, index)
+      : createAttribSetter(index);
   }
 
   return attribSetters;
