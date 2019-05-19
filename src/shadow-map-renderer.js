@@ -33,24 +33,18 @@ export default class ShadowMapRenderer {
     let bufferInfos = scene.meshes.map(mesh => {
       let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      const indicesData = flatMap(faces, (f, fIdx) => {
-        let offset = sumBy(take(faces, fIdx), f => f.data.length);
-        return f.triangleIndices.map(ti => ti + offset)
+      let positions = flatMap(faces, f => {
+        return flatMap(f.triangleIndicesForVertexes, ti => [...vertices[ti]]);
       });
       let arrays = {
         position: {
           numComponents: 3, // 3 个数构成一个 position
-          data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
-        },
-        indices: {
-          numComponents: 3, // 3 个点的索引构成一个三角形
-          data: flatMap(range(numShadowMapTextureCount), () => indicesData)
+          data: flatMap(range(numShadowMapTextureCount), () => positions)
         },
         layout: {
-          // TODO 调试时直接渲染某层
           numComponents: 1, // 指定这个位置渲染到哪个层
-          data: flatMap(range(numShadowMapTextureCount), texIdx => {
-            return Array.from({length: indicesData.length}).fill(texIdx);
+          data: flatMap(range(numShadowMapTextureCount), layerIdx => {
+            return Array.from({length: positions.length / 3}).fill(layerIdx);
           }),
           type: Int32Array
         }
@@ -59,18 +53,10 @@ export default class ShadowMapRenderer {
       return createBufferInfoFromArrays(gl, arrays);
     });
 
-    if (renderShadowMap) {
-      this.shadowMapConf = {
-        programInfo,
-        bufferInfos,
-        vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi))
-      };
-      return;
-    }
-
-    const frameBuffer = renderShadowMap ? null : gl.createFramebuffer();
+    const frameBuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     let offset = 0;
+    // TODO use glFramebufferTextureLayer
     scene.lights.forEach((l, idx) => {
       l.initShadowMapTexture(gl, idx);
       if (l instanceof DistantLight) {
@@ -90,7 +76,8 @@ export default class ShadowMapRenderer {
       programInfo,
       bufferInfos,
       vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
-      frameBuffer
+      frameBuffer,
+      numShadowMapTextureCount
     };
   }
 
@@ -102,7 +89,8 @@ export default class ShadowMapRenderer {
       programInfo: shadowMapProgramInfo,
       bufferInfos: shadowMapBufferInfos,
       vaos: shadowMapVaos,
-      frameBuffer
+      frameBuffer,
+      numShadowMapTextureCount
     } = this.shadowMapConf;
 
     // 计算 world to light space 矩阵
@@ -111,8 +99,11 @@ export default class ShadowMapRenderer {
     let {meshes, lights} = scene;
 
     // TODO 调试时直接将 color[debugIdx] 写入到 color[0] 即可
-    gl.bindFramebuffer(gl.FRAMEBUFFER, renderShadowMap ? null : frameBuffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
+
+    // tell it we want to draw to all n attachments
+    gl.drawBuffers(range(numShadowMapTextureCount).map(i => gl.COLOR_ATTACHMENT0 + i));
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -122,37 +113,32 @@ export default class ShadowMapRenderer {
     gl.useProgram(shadowMapProgramInfo.program);
 
     lights.forEach(l => l.calcProjectAndWorldToLightMatrix(scene));
-    const distantLights = lights.filter(l => l instanceof DistantLight);
-    const pointLights = lights.filter(l => l instanceof PointLight);
 
     for (let i = 0; i < meshes.length; i++) {
       let mesh = meshes[i];
       let {rotation, position} = mesh;
       let mRotTran = mat4.fromRotationTranslation(mat4.create(), quat.fromEuler(quat.create(), ...rotation), position);
 
-      const uniformOfDistantLights = distantLights.reduce((acc, curr, idx) => {
-          acc[`u_mat4_proj_w2l_transform[${idx}]`] = mat4.multiply(mat4.create(), curr.mat4_proj_w2l, mRotTran);
-          return acc
-        }, {});
-      const uniformOfPointLights = pointLights.reduce((acc, curr, idx) => {
-          let {mat4_proj_w2l_arr} = curr;
-          acc[`u_mat4_proj_w2l_transform[${idx * 6    }]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[0], mRotTran);
-          acc[`u_mat4_proj_w2l_transform[${idx * 6 + 1}]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[1], mRotTran);
-          acc[`u_mat4_proj_w2l_transform[${idx * 6 + 2}]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[2], mRotTran);
-          acc[`u_mat4_proj_w2l_transform[${idx * 6 + 3}]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[3], mRotTran);
-          acc[`u_mat4_proj_w2l_transform[${idx * 6 + 4}]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[4], mRotTran);
-          acc[`u_mat4_proj_w2l_transform[${idx * 6 + 5}]`] = mat4.multiply(mat4.create(), mat4_proj_w2l_arr[5], mRotTran);
-          return acc
-        }, {});
-
-      let uniforms = Object.assign(uniformOfDistantLights, uniformOfPointLights);
+      let uniforms = {
+        u_mat4_proj_w2l_transform: flatMap(lights, l => {
+          if (l instanceof DistantLight) {
+            let m4 = mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran);
+            return [...m4]
+          } else {
+            return flatMap(l.mat4_proj_w2l_arr, mat4_proj_w2l => {
+              let m4 = mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran);
+              return [...m4]
+            })
+          }
+        })
+      };
       setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
 
       // let bufferInfo = shadowMapBufferInfos[i];
       // setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
       gl.bindVertexArray(shadowMapVaos[i]);
 
-      gl.drawElements(gl.TRIANGLES, shadowMapBufferInfos[i].numElements, gl.UNSIGNED_SHORT, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, shadowMapBufferInfos[i].numElements);
     }
 
     return this.shadowMapConf

@@ -19,6 +19,8 @@ struct DistantLight {
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 //uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 uniform float u_albedoDivPI;
+// TODO use sampler2DArray
+// https://github.com/WebGLSamples/WebGL2Samples/blob/master/samples/texture_2d_array.html
 uniform sampler2D u_texShadowMap;
 
 in vec3 v_normal;

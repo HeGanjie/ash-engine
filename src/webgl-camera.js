@@ -84,6 +84,7 @@ export class Camera {
     // let shadowMapInfos = scene.lights.map(l => ({ light: l, ...l.renderShadowMap(scene, gl) }));
     this.shadowMapRenderer.renderShadowMap(scene, gl);
     if (renderShadowMap) {
+      // using spector.js
       return
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);

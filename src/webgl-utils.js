@@ -378,10 +378,11 @@ export function createUniformSetters(gl, program) {
       break;
     }
     var name = uniformInfo.name;
-    // remove the array suffix. HeGanjie changed
-    // if (name.substr(-3) === "[0]") {
-    //   name = name.substr(0, name.length - 3);
-    // }
+
+    // remove the array suffix.
+    if (name.substr(-3) === "[0]") {
+      name = name.substr(0, name.length - 3);
+    }
     var setter = createUniformSetter(program, uniformInfo);
     uniformSetters[name] = setter;
   }

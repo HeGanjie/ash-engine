@@ -12,5 +12,5 @@ void main() {
         glFragColor[<%= i %>] = vec4(gl_FragCoord.zzz, 1.0);
     }
     <% } %>
-//    glFragColor[0] = vec4(gl_FragCoord.zzz, 1.0);
+    // glFragColor[0] = vec4(gl_FragCoord.zzz, 1.0);
 }

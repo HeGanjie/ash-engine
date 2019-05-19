@@ -40,10 +40,12 @@ export class Mesh {
       } else {
         vPos = flatMap(f.data, ({V}) => [...vertices[V]]);
       }
+      // [2, 3, 0, 0, 1, 2]
       f.triangleIndices = earcut(vPos, null, 3);
       if (isEmpty(f.triangleIndices)) {
         throw new Error('triangulation error: ' + f)
       }
+      f.triangleIndicesForVertexes = f.triangleIndices.map(ti => f.data[ti].V)
     })
   }
 }

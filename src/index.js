@@ -76,7 +76,7 @@ planeMesh.verticesColor.push(
 );
 
 let distantLight = new DistantLight(
-  mat4.fromXRotation(mat4.create(), (-90 * Math.PI) / 180),
+  mat4.fromXRotation(mat4.create(), (-80 * Math.PI) / 180),
   { r: 1, g: 1, b: 1 },
   20
 );
