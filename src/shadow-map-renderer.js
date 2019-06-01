@@ -6,7 +6,7 @@ import {
   setUniforms
 } from "./webgl-utils";
 import distantLightVertShader from "./shader/shadow-map.vert";
-import distantLightFragShader from "./shader/shadow-map.fs";
+import distantLightFragShader from "./shader/shadow-map.frag";
 import {renderShadowMap, targetTextureHeight, targetTextureWidth} from "./constants";
 import {mat4, quat} from "gl-matrix";
 import {flatMap, sumBy, take, range, template} from 'lodash'
@@ -21,33 +21,17 @@ export default class ShadowMapRenderer {
     let numDistantLightCount = scene.lights.filter(l => l instanceof DistantLight).length;
     let numPointLightCount = scene.lights.filter(l => l instanceof PointLight).length;
     const numShadowMapTextureCount = numDistantLightCount + numPointLightCount * 6;
-    const shaderSources = [distantLightVertShader, distantLightFragShader]
-      .map(src => {
-        const pass1 = template(src)({
-          NUM_TEXTURES: numShadowMapTextureCount
-        });
-        return pass1.replace(/NUM_TEXTURES/g, numShadowMapTextureCount);
-      });
+    const shaderSources = [distantLightVertShader, distantLightFragShader];
     let programInfo = createProgramInfo(gl, shaderSources);
 
     let bufferInfos = scene.meshes.map(mesh => {
       let {vertices, faces} = mesh;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
-      let positions = flatMap(faces, f => {
-        return flatMap(f.triangleIndicesForVertexes, ti => [...vertices[ti]]);
-      });
       let arrays = {
         position: {
-          numComponents: 3, // 3 个数构成一个 position
-          data: flatMap(range(numShadowMapTextureCount), () => positions)
+          numComponents: 3,
+          data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
         },
-        layout: {
-          numComponents: 1, // 指定这个位置渲染到哪个层
-          data: flatMap(range(numShadowMapTextureCount), layerIdx => {
-            return Array.from({length: positions.length / 3}).fill(layerIdx);
-          }),
-          type: Int32Array
-        }
       };
 
       return createBufferInfoFromArrays(gl, arrays);
@@ -103,7 +87,7 @@ export default class ShadowMapRenderer {
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
 
     // tell it we want to draw to all n attachments
-    gl.drawBuffers(range(numShadowMapTextureCount).map(i => gl.COLOR_ATTACHMENT0 + i));
+    // gl.drawBuffers(range(numShadowMapTextureCount).map(i => gl.COLOR_ATTACHMENT0 + i));
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -138,7 +122,7 @@ export default class ShadowMapRenderer {
       // setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
       gl.bindVertexArray(shadowMapVaos[i]);
 
-      gl.drawArrays(gl.TRIANGLES, 0, shadowMapBufferInfos[i].numElements);
+      gl.drawElements(gl.TRIANGLES, shadowMapBufferInfos[i].numElements, gl.UNSIGNED_SHORT, 0);
     }
 
     return this.shadowMapConf
