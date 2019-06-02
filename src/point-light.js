@@ -77,7 +77,7 @@ export class PointLight extends Light {
     let {position: lightPosition} = this;
     this.mat4_proj_w2l_arr = faceInfos.map(fi => {
       let w2l = mat4.lookAt(mat4.create(), lightPosition, vec3.add(vec3.create(), lightPosition, fi.direct), fi.up);
-      let ppMatrix = mat4.perspective(mat4.create(), Math.PI / 2, 1, 1, 20);
+      let ppMatrix = mat4.perspective(mat4.create(), Math.PI / 2, 1, 1, 25);
       return mat4.multiply(mat4.create(), ppMatrix, w2l);
     });
     return this.mat4_proj_w2l_arr

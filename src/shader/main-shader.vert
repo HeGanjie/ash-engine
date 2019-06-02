@@ -29,7 +29,7 @@ uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 
 out vec3 v_normal;
 out vec3 v_color;
-out vec3 v_shadowMapPosArr[NUM_LIGHTS];
+out vec3 v_shadowMapPosArr[NUM_SHADOW_MAPS];
 
 void main() {
     gl_Position = u_mat4_pp_w2c_transform * a_position;
@@ -42,12 +42,14 @@ void main() {
         v_shadowMapPosArr[i] = vec3(u_distantLights[i].op_w2l_transform * a_position);
     }
     for (int i = NUM_DISTANT_LIGHT; i < NUM_LIGHTS; i++) {
-        int pointLightIdx = i - NUM_DISTANT_LIGHT, shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
-        v_shadowMapPosArr[shadowMapIdx    ] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[0] * a_position);
-        v_shadowMapPosArr[shadowMapIdx + 1] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[1] * a_position);
-        v_shadowMapPosArr[shadowMapIdx + 2] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[2] * a_position);
-        v_shadowMapPosArr[shadowMapIdx + 3] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[3] * a_position);
-        v_shadowMapPosArr[shadowMapIdx + 4] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[4] * a_position);
-        v_shadowMapPosArr[shadowMapIdx + 5] = vec3(u_pointLights[pointLightIdx].proj_w2l_transform[5] * a_position);
+        int pointLightIdx = i - NUM_DISTANT_LIGHT,
+            shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
+        mat4[] proj_w2l_transform = u_pointLights[pointLightIdx].proj_w2l_transform;
+        v_shadowMapPosArr[shadowMapIdx    ] = vec3(proj_w2l_transform[0] * a_position);
+        v_shadowMapPosArr[shadowMapIdx + 1] = vec3(proj_w2l_transform[1] * a_position);
+        v_shadowMapPosArr[shadowMapIdx + 2] = vec3(proj_w2l_transform[2] * a_position);
+        v_shadowMapPosArr[shadowMapIdx + 3] = vec3(proj_w2l_transform[3] * a_position);
+        v_shadowMapPosArr[shadowMapIdx + 4] = vec3(proj_w2l_transform[4] * a_position);
+        v_shadowMapPosArr[shadowMapIdx + 5] = vec3(proj_w2l_transform[5] * a_position);
     }
 }

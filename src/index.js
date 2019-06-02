@@ -13,7 +13,7 @@ let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("webgl2"); // 2d
 
 if (!ctx) {
-  throw new Error("Not support webgl");
+  throw new Error("Not support webgl2");
 }
 
 let cubeMesh = new Mesh("Cube");
@@ -89,7 +89,7 @@ let distantLight2 = new DistantLight(
 let pointLight1 = new PointLight(
   mat4.fromTranslation(mat4.create(), [-2, 2, 0]),
   { r: 0.6, g: 0.6, b: 1 },
-  1000
+  4000
 );
 let pointLight2 = new PointLight(
   mat4.fromTranslation(mat4.create(), [2, 2, 0]),

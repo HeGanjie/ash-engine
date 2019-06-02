@@ -225,6 +225,7 @@ export function createProgramFromSources(
 export function getBindPointForSamplerType(gl, type) {
   if (type === gl.SAMPLER_2D)   return gl.TEXTURE_2D;        // eslint-disable-line
   if (type === gl.SAMPLER_CUBE) return gl.TEXTURE_CUBE_MAP;  // eslint-disable-line
+  if (type === gl.SAMPLER_2D_ARRAY) return gl.TEXTURE_2D_ARRAY;  // eslint-disable-line
   return undefined;
 }
 
@@ -342,7 +343,7 @@ export function createUniformSetters(gl, program) {
         gl.uniformMatrix4fv(location, false, v);
       };
     }
-    if ((type === gl.SAMPLER_2D || type === gl.SAMPLER_CUBE) && isArray) {
+    if ((type === gl.SAMPLER_2D || type === gl.SAMPLER_CUBE || type === gl.SAMPLER_2D_ARRAY) && isArray) {
       var units = [];
       for (var ii = 0; ii < info.size; ++ii) {
         units.push(textureUnit++);
@@ -357,7 +358,7 @@ export function createUniformSetters(gl, program) {
         };
       }(getBindPointForSamplerType(gl, type), units);
     }
-    if (type === gl.SAMPLER_2D || type === gl.SAMPLER_CUBE) {
+    if (type === gl.SAMPLER_2D || type === gl.SAMPLER_CUBE || type === gl.SAMPLER_2D_ARRAY) {
       return function(bindPoint, unit) {
         return function(texture) {
           gl.uniform1i(location, unit);

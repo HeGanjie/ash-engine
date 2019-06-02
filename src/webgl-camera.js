@@ -63,7 +63,7 @@ export class Camera {
         indices:  {
           numComponents: 3,
           data: flatMap(faces, (f, fIdx) => {
-            let offset = sumBy(take(faces, fIdx), f => f.data.length)
+            let offset = sumBy(take(faces, fIdx), f => f.data.length);
             return f.triangleIndices.map(ti => ti + offset)
           })
         },
@@ -75,14 +75,12 @@ export class Camera {
     this.webglConf = {
       programInfo,
       bufferInfos,
-      vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi))
+      vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
+      numDistantLightCount
     };
   }
 
   render(scene, gl, fov = PI / 2) {
-    // TODO implement point light and point light shadow map
-    // TODO support multi distant light (render to single texture)
-    // let shadowMapInfos = scene.lights.map(l => ({ light: l, ...l.renderShadowMap(scene, gl) }));
     this.shadowMapRenderer.renderShadowMap(scene, gl);
     if (renderShadowMap) {
       // using spector.js
@@ -97,7 +95,12 @@ export class Camera {
     if (!this.webglConf) {
       this.initShader(scene, gl);
     }
-    let { programInfo, bufferInfos, vaos } = this.webglConf;
+    let {
+      programInfo,
+      bufferInfos,
+      vaos,
+      numDistantLightCount
+    } = this.webglConf;
     //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -108,23 +111,33 @@ export class Camera {
 
     gl.useProgram(programInfo.program);
 
-    const uniformOfLights = shadowMapInfos
-      .filter(info => info.light instanceof DistantLight)
-      .reduce((acc, curr, idx) => {
-        let {direction, color, intensity} = curr.light;
-        acc[`u_distantLights[${idx}].direction`] = direction;
-        acc[`u_distantLights[${idx}].color`] = vec3.fromValues(color.r, color.g, color.b);
-        acc[`u_distantLights[${idx}].intensity`] = intensity;
-        acc[`u_distantLights[${idx}].reverseLightDirection`] = vec3.scale(vec3.create(), direction, -1);
-        // acc[`u_distantLights[${idx}].indexOfLights`] = idx;
-        return acc
-      }, {});
-    let uniforms = Object.assign({ u_texShadowMap: shadowMapInfos[0].targetTexture }, uniformOfLights);
-    setUniforms(programInfo.uniformSetters, uniforms);
-
     let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
     let ppMatrix = mat4.perspective(mat4.create(), fov, this.width / this.height, 1, 20);
     let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
+
+    const uniformOfLights = scene.lights
+      .reduce((acc, currLight, idx) => {
+        if (currLight instanceof DistantLight) {
+          let {direction, color, intensity, mat4_proj_w2l} = currLight;
+          acc[`u_distantLights[${idx}].direction`] = direction;
+          acc[`u_distantLights[${idx}].color`] = vec3.fromValues(color.r, color.g, color.b);
+          acc[`u_distantLights[${idx}].intensity`] = intensity;
+          // acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4_proj_w2l; // bind later
+          acc[`u_distantLights[${idx}].reverseLightDirection`] = vec3.scale(vec3.create(), direction, -1);
+        } else if (currLight instanceof PointLight) {
+          let {position, color, intensity, mat4_proj_w2l_arr} = currLight;
+          let pointLightIdx = idx - numDistantLightCount;
+          acc[`u_pointLights[${pointLightIdx}].position`] = vec3.transformMat4(vec3.create(), position, pp_w2c);
+          acc[`u_pointLights[${pointLightIdx}].color`] = vec3.fromValues(color.r, color.g, color.b);
+          acc[`u_pointLights[${pointLightIdx}].intensity`] = intensity;
+          // acc[`u_pointLights[${pointLightIdx}].proj_w2l_transform`] = mat4_proj_w2l; // bind later
+        } else {
+          throw new Error('Unknown light')
+        }
+        return acc
+      }, {});
+    let uniforms = Object.assign({ u_texShadowMapArr: texture2dArr }, uniformOfLights);
+    setUniforms(programInfo.uniformSetters, uniforms);
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
@@ -140,12 +153,24 @@ export class Camera {
           u_albedoDivPI: albedo / Math.PI,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
-        }, shadowMapInfos
-        .filter(info => info.light instanceof DistantLight)
-        .reduce((acc, curr, idx) => {
-          acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.op_w2l, mRotTrans);
-          return acc
-        }, {})
+        },
+        scene.lights
+          .filter(l => l instanceof DistantLight)
+          .reduce((acc, curr, idx) => {
+            acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.mat4_proj_w2l, mRotTrans);
+            return acc
+          }, {}),
+        scene.lights
+          .filter(l => l instanceof PointLight)
+          .reduce((acc, curr, idx) => {
+            let {mat4_proj_w2l_arr} = curr;
+            let mergedData = flatMap(mat4_proj_w2l_arr, ppW2l => {
+              let m = mat4.multiply(mat4.create(), ppW2l, mRotTrans);
+              return [...m]
+            });
+            acc[`u_pointLights[${idx}].proj_w2l_transform`] = mergedData;
+            return acc
+          }, {})
       );
       setUniforms(programInfo.uniformSetters, uniforms);
 

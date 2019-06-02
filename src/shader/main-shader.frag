@@ -1,7 +1,9 @@
 #version 300 es
 
 precision mediump float;
-precision mediump int;
+precision mediump sampler2DArray;
+
+#define M_PI 3.141592653589793
 
 struct DistantLight {
     vec3 direction;
@@ -68,12 +70,14 @@ void main() {
             float depthCalc = v_shadowMapPos.z;
             float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
 
-            glFragColor.rgb += illuminated
+            vec3 lightDir = u_pointLight.position - gl_FragCoord.xyz;
+            float distance = length(lightDir) / 25.0;
+            glFragColor.rgb += 1.0 // illuminated
                 * u_albedoDivPI
                 * u_pointLight.intensity
-                * max(0.0, dot(normal, gl_FragCoord.xyz - u_pointLight.position)) // u_pointLight.position should be in screen coord
+                * max(0.0, dot(normal, normalize(lightDir)))
                 * v_color
-                * u_pointLight.color;
+                * u_pointLight.color / (4.0 * M_PI * distance * distance);
         }
     }
 }
