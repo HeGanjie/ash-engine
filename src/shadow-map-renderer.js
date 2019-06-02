@@ -1,15 +1,9 @@
-import {
-  createBufferInfoFromArrays,
-  createProgramInfo,
-  createVAOFromBufferInfo,
-  setBuffersAndAttributes,
-  setUniforms
-} from "./webgl-utils";
+import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from "./webgl-utils";
 import distantLightVertShader from "./shader/shadow-map.vert";
 import distantLightFragShader from "./shader/shadow-map.frag";
-import {renderShadowMap, targetTextureHeight, targetTextureWidth} from "./constants";
+import {targetTextureHeight, targetTextureWidth} from "./constants";
 import {mat4, quat} from "gl-matrix";
-import {flatMap, sumBy, take, range, template} from 'lodash'
+import {flatMap, sumBy, take} from 'lodash'
 import {DistantLight} from "./distant-light";
 import {PointLight} from "./point-light";
 
@@ -64,30 +58,14 @@ export default class ShadowMapRenderer {
       gl.RGBA,
       targetTextureWidth,
       targetTextureHeight,
-      numShadowMapTextureCount + 1,
+      numShadowMapTextureCount, // test with +1, spector's bug?
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
       null
     );
     // render to j th layer
-    // gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, 0);
-
-/*  let offset = 0;
-    scene.lights.forEach((l, idx) => {
-      l.initShadowMapTexture(gl, idx);
-      if (l instanceof DistantLight) {
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + offset,
-          gl.TEXTURE_2D, l.texture, 0);
-        offset += 1;
-      } else if (l instanceof PointLight) {
-        for (let i = 0; i < 6; i++) {
-          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + offset,
-            gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, l.texture, 0);
-          offset += 1;
-        }
-      }
-    });*/
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, 0);
 
     this.shadowMapConf = {
       programInfo,
@@ -140,12 +118,10 @@ export default class ShadowMapRenderer {
 
       const uMat4ProjW2lTransforms = flatMap(lights, l => {
         if (l instanceof DistantLight) {
-          let m4 = mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran);
-          return m4
+          return mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran)
         } else {
           return l.mat4_proj_w2l_arr.map(mat4_proj_w2l => {
-            let m4 = mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran);
-            return m4
+            return mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran)
           })
         }
       });
@@ -161,7 +137,7 @@ export default class ShadowMapRenderer {
         setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
 
         // render to j th layer
-        gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, j + 1); // TODO do not add 1
+        gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, j); // test with +1, spector's bug?
 
         gl.drawElements(gl.TRIANGLES, shadowMapBufferInfos[i].numElements, gl.UNSIGNED_SHORT, 0);
       }

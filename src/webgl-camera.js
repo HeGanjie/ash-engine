@@ -36,6 +36,7 @@ export class Camera {
           .replace(/NUM_DISTANT_LIGHT/g, numDistantLightCount)
           .replace(/NUM_POINT_LIGHT/g, numPointLightCount)
           .replace(/NUM_LIGHTS/g, scene.lights.length)
+          .replace(/NUM_SHADOW_MAPS/g, numDistantLightCount + numPointLightCount * 6)
       });
     let programInfo = createProgramInfo(gl, shaderSources);
 
