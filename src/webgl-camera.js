@@ -87,6 +87,10 @@ export class Camera {
       // using spector.js
       return
     }
+    let {
+      numShadowMapTextureCount,
+      texture2dArr
+    } = this.shadowMapRenderer.shadowMapConf;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     if (!this.webglConf) {

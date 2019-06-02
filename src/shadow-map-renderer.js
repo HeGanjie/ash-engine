@@ -32,6 +32,13 @@ export default class ShadowMapRenderer {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
         },
+        indices:  {
+          numComponents: 3,
+          data: flatMap(faces, (f, fIdx) => {
+            let offset = sumBy(take(faces, fIdx), f => f.data.length);
+            return f.triangleIndices.map(ti => ti + offset)
+          })
+        },
       };
 
       return createBufferInfoFromArrays(gl, arrays);
@@ -39,8 +46,34 @@ export default class ShadowMapRenderer {
 
     const frameBuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-    let offset = 0;
-    // TODO use glFramebufferTextureLayer
+
+    // 创建 textureArray 材质
+    let texture2dArr = gl.createTexture()
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture2dArr);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    // gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_BASE_LEVEL, 0);
+    // gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAX_LEVEL, 0);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    gl.texImage3D(
+      gl.TEXTURE_2D_ARRAY,
+      0,
+      gl.RGBA,
+      targetTextureWidth,
+      targetTextureHeight,
+      numShadowMapTextureCount + 1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    // render to j th layer
+    // gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, 0);
+
+/*  let offset = 0;
     scene.lights.forEach((l, idx) => {
       l.initShadowMapTexture(gl, idx);
       if (l instanceof DistantLight) {
@@ -54,14 +87,15 @@ export default class ShadowMapRenderer {
           offset += 1;
         }
       }
-    });
+    });*/
 
     this.shadowMapConf = {
       programInfo,
       bufferInfos,
       vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
       frameBuffer,
-      numShadowMapTextureCount
+      numShadowMapTextureCount,
+      texture2dArr
     };
   }
 
@@ -74,7 +108,8 @@ export default class ShadowMapRenderer {
       bufferInfos: shadowMapBufferInfos,
       vaos: shadowMapVaos,
       frameBuffer,
-      numShadowMapTextureCount
+      numShadowMapTextureCount,
+      texture2dArr
     } = this.shadowMapConf;
 
     // 计算 world to light space 矩阵
@@ -103,26 +138,33 @@ export default class ShadowMapRenderer {
       let {rotation, position} = mesh;
       let mRotTran = mat4.fromRotationTranslation(mat4.create(), quat.fromEuler(quat.create(), ...rotation), position);
 
-      let uniforms = {
-        u_mat4_proj_w2l_transform: flatMap(lights, l => {
-          if (l instanceof DistantLight) {
-            let m4 = mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran);
-            return [...m4]
-          } else {
-            return flatMap(l.mat4_proj_w2l_arr, mat4_proj_w2l => {
-              let m4 = mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran);
-              return [...m4]
-            })
-          }
-        })
-      };
-      setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
+      const uMat4ProjW2lTransforms = flatMap(lights, l => {
+        if (l instanceof DistantLight) {
+          let m4 = mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran);
+          return m4
+        } else {
+          return l.mat4_proj_w2l_arr.map(mat4_proj_w2l => {
+            let m4 = mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran);
+            return m4
+          })
+        }
+      });
 
       // let bufferInfo = shadowMapBufferInfos[i];
       // setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
       gl.bindVertexArray(shadowMapVaos[i]);
 
-      gl.drawElements(gl.TRIANGLES, shadowMapBufferInfos[i].numElements, gl.UNSIGNED_SHORT, 0);
+      for (let j = 0; j < numShadowMapTextureCount; j++) {
+        let uniforms = {
+          u_mat4_proj_w2l_transform: uMat4ProjW2lTransforms[j]
+        };
+        setUniforms(shadowMapProgramInfo.uniformSetters, uniforms);
+
+        // render to j th layer
+        gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, texture2dArr, 0, j + 1); // TODO do not add 1
+
+        gl.drawElements(gl.TRIANGLES, shadowMapBufferInfos[i].numElements, gl.UNSIGNED_SHORT, 0);
+      }
     }
 
     return this.shadowMapConf
