@@ -28,26 +28,30 @@ uniform sampler2DArray u_texShadowMapArr;
 
 in vec3 v_normal;
 in vec3 v_color;
-in vec3 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
+in vec3 v_fragWorldPos;
+in vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
 
 out vec4 glFragColor;
 
 void main() {
     glFragColor = vec4(0, 0, 0, 1);
+//    glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
 
     // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
     vec3 normal = normalize(v_normal);
 
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         DistantLight u_distantLight = u_distantLights[i];
-        vec3 v_shadowMapPos = v_shadowMapPosArr[i];
+        vec4 v_shadowMapPos = v_shadowMapPosArr[i];
+        vec3 projPos = v_shadowMapPos.xyz / v_shadowMapPos.w;
 
-        vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
-        //sampler2D texShadowMap = u_texShadowMaps[u_distantLight.indexOfLights];
+        vec2 v_texcoord = projPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
         vec4 shadowMapColor = texture(u_texShadowMapArr, vec3(v_texcoord, i));
-        float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
-        float depthCalc = v_shadowMapPos.z;
-        float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
+        // shadowMapColor.r  [0, 1]
+        float minDepth = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
+        // v_shadowMapPos.z  [-1, 1] -> [0, 1]
+        float depthOfFrag = projPos.z * 0.5 + 0.5;
+        float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.01 ? 1 : 0
 
         glFragColor.rgb += illuminated
             * u_albedoDivPI
@@ -62,17 +66,25 @@ void main() {
 
         PointLight u_pointLight = u_pointLights[pointLightIdx];
         for (int j = 0; j < 6; j++) {
-            vec3 v_shadowMapPos = v_shadowMapPosArr[shadowMapIdx + j];
+            vec4 v_shadowMapPos = v_shadowMapPosArr[shadowMapIdx + j];
+            vec3 projPos = v_shadowMapPos.xyz / v_shadowMapPos.w;
 
-            vec2 v_texcoord = v_shadowMapPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
+            float pX = projPos.x, pY = projPos.y, pZ = projPos.z;
+            if (pX < -1.0 || 1.0 < pX || pY < -1.0 || 1.0 < pY || pZ < -1.0 || 1.0 < pZ) {
+                continue;
+            }
+
+            vec2 v_texcoord = projPos.xy * 0.5 + 0.5; // [-1. 1] => [0, 1]
             vec4 shadowMapColor = texture(u_texShadowMapArr, vec3(v_texcoord, shadowMapIdx + j));
-            float depthInLightSpace = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
-            float depthCalc = v_shadowMapPos.z;
-            float illuminated = step(depthCalc, depthInLightSpace + 0.001); // depthCalc <= depthInLightSpace + 0.001 ? 1 : 0
+            // shadowMapColor.r  [0, 1]
+            float minDepth = shadowMapColor.r; // 如果被遮挡的话，这个值比较小
+            // v_shadowMapPos.z  [-1, 1] -> [0, 1]
+            float depthOfFrag = projPos.z * 0.5 + 0.5;
+            float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.001 ? 1 : 0
 
-            vec3 lightDir = u_pointLight.position - gl_FragCoord.xyz;
-            float distance = length(lightDir) / 25.0;
-            glFragColor.rgb += 1.0 // illuminated
+            vec3 lightDir = u_pointLight.position - v_fragWorldPos;
+            float distance = length(lightDir);
+            glFragColor.rgb += illuminated
                 * u_albedoDivPI
                 * u_pointLight.intensity
                 * max(0.0, dot(normal, normalize(lightDir)))

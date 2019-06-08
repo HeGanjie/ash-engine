@@ -127,7 +127,7 @@ export class Camera {
         } else if (currLight instanceof PointLight) {
           let {position, color, intensity, mat4_proj_w2l_arr} = currLight;
           let pointLightIdx = idx - numDistantLightCount;
-          acc[`u_pointLights[${pointLightIdx}].position`] = vec3.transformMat4(vec3.create(), position, pp_w2c);
+          acc[`u_pointLights[${pointLightIdx}].position`] = position;
           acc[`u_pointLights[${pointLightIdx}].color`] = vec3.fromValues(color.r, color.g, color.b);
           acc[`u_pointLights[${pointLightIdx}].intensity`] = intensity;
           // acc[`u_pointLights[${pointLightIdx}].proj_w2l_transform`] = mat4_proj_w2l; // bind later
@@ -152,6 +152,7 @@ export class Camera {
       let uniforms = Object.assign({
           u_albedoDivPI: albedo / Math.PI,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
+          u_mat4_transform: mRotTrans,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
         },
         scene.lights
