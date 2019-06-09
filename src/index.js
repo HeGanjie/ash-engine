@@ -55,6 +55,9 @@ cubeMesh.verticesColor.push(
   { r: 1, g: 1, b: 1 },
   { r: 1, g: 1, b: 1 }
 );
+cubeMesh.kS = 0.02;
+cubeMesh.kD = 1 - cubeMesh.kS;
+cubeMesh.specularExp = 1;
 
 let planeMesh = new Mesh("Ground");
 planeMesh.vertices.push(
@@ -74,11 +77,14 @@ planeMesh.verticesColor.push(
   { r: 0.5, g: 0.5, b: 0.5 },
   { r: 0.5, g: 0.5, b: 0.5 }
 );
+planeMesh.kS = 0.04;
+planeMesh.kD = 1 - planeMesh.kS;
+planeMesh.specularExp = 2;
 
 let distantLight = new DistantLight(
   mat4.fromXRotation(mat4.create(), (-90* Math.PI) / 180),
   { r: 1, g: 1, b: 1 },
-  20
+  10
 );
 
 let distantLight2 = new DistantLight(
@@ -89,12 +95,12 @@ let distantLight2 = new DistantLight(
 let pointLight1 = new PointLight(
   mat4.fromTranslation(mat4.create(), [-2, 2, 0]),
   { r: 0.6, g: 0.6, b: 1 },
-  1000
+  500
 );
 let pointLight2 = new PointLight(
   mat4.fromTranslation(mat4.create(), [2, 2, 0]),
   { r: 1, g: 0.6, b: 0.6 },
-  1000
+  500
 );
 let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1, pointLight2]);
 
@@ -103,11 +109,16 @@ camera.position = vec3.fromValues(0, 2, 3);
 camera.target = vec3.fromValues(0, -1, 0);
 
 const radToAngle = 180 / Math.PI;
+// const rotDistanceLight = mat4.fromXRotation(mat4.create(), -0.05 * Math.PI / 180);
+
 function drawingLoop() {
   stats.begin();
   camera.render(scene, ctx);
   cubeMesh.rotation[0] += 0.01 * radToAngle;
   cubeMesh.rotation[1] += 0.01 * radToAngle;
+
+  // vec3.transformMat4(distantLight.direction, distantLight.direction, rotDistanceLight);
+  // vec3.normalize(distantLight.direction, distantLight.direction)
   stats.end();
   requestAnimationFrame(drawingLoop);
 }

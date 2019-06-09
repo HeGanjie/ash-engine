@@ -23,6 +23,10 @@ struct PointLight {
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 uniform float u_albedoDivPI;
+uniform float u_kd;
+uniform float u_ks;
+uniform float u_specularExp;
+uniform vec3 u_cameraPos;
 // https://github.com/WebGLSamples/WebGL2Samples/blob/master/samples/texture_2d_array.html
 uniform sampler2DArray u_texShadowMapArr;
 
@@ -50,6 +54,7 @@ void main() {
 
     // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
     vec3 normal = normalize(v_normal);
+    vec3 viewDirReverse = normalize(u_cameraPos - v_fragWorldPos);
 
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         DistantLight u_distantLight = u_distantLights[i];
@@ -64,20 +69,27 @@ void main() {
         float depthOfFrag = projPos.z * 0.5 + 0.5;
         float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.01 ? 1 : 0
 
-        glFragColor.rgb += illuminated
+        vec3 diffuse = illuminated
             * u_albedoDivPI
             * u_distantLight.intensity
             * max(0.0, dot(normal, u_distantLight.reverseLightDirection))
             * v_color
             * u_distantLight.color;
+
+        vec3 R = reflect(u_distantLight.direction, normal);
+        float specular = illuminated
+            * u_distantLight.intensity
+            * pow(max(0.0, dot(R, viewDirReverse)), u_specularExp);
+
+        glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
 
     for (int i = NUM_DISTANT_LIGHT; i < NUM_LIGHTS; i++) {
         int pointLightIdx = i - NUM_DISTANT_LIGHT, shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
 
         PointLight u_pointLight = u_pointLights[pointLightIdx];
-        vec3 lightDir = u_pointLight.position - v_fragWorldPos;
-        int faceIdx = lookupCubeFace(-lightDir);
+        vec3 lightDir = v_fragWorldPos - u_pointLight.position;
+        int faceIdx = lookupCubeFace(lightDir);
 
         vec4 v_shadowMapPos = v_shadowMapPosArr[shadowMapIdx + faceIdx];
         vec3 projPos = v_shadowMapPos.xyz / v_shadowMapPos.w;
@@ -91,11 +103,21 @@ void main() {
         float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.001 ? 1 : 0
 
         float distance = length(lightDir);
-        glFragColor.rgb += illuminated
+        float attenuation = 1.0 / (4.0 * M_PI * distance * distance);
+        vec3 diffuse = illuminated
             * u_albedoDivPI
             * u_pointLight.intensity
-            * max(0.0, dot(normal, normalize(lightDir)))
+            * max(0.0, dot(normal, normalize(-lightDir)))
             * v_color
-            * u_pointLight.color / (4.0 * M_PI * distance * distance);
+            * u_pointLight.color
+            * attenuation;
+
+        vec3 R = reflect(normalize(lightDir), normal);
+        float specular = illuminated
+            * u_pointLight.intensity
+            * pow(max(0.0, dot(R, viewDirReverse)), u_specularExp)
+            * attenuation;
+
+        glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
 }

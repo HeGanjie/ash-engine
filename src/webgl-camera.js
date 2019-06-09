@@ -136,12 +136,15 @@ export class Camera {
         }
         return acc
       }, {});
-    let uniforms = Object.assign({ u_texShadowMapArr: texture2dArr }, uniformOfLights);
+    let uniforms = Object.assign({
+      u_texShadowMapArr: texture2dArr,
+      u_cameraPos: this.position,
+    }, uniformOfLights);
     setUniforms(programInfo.uniformSetters, uniforms);
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
-      let {rotation, position, albedo} = mesh;
+      let {rotation, position, albedo, kD, kS, specularExp} = mesh;
       let mRo = mat4.fromQuat(mat4.create(), quat.fromEuler(quat.create(), ...rotation));
       let mRotTrans = mat4.translate(mat4.create(), mRo, position);
 
@@ -151,6 +154,9 @@ export class Camera {
 
       let uniforms = Object.assign({
           u_albedoDivPI: albedo / Math.PI,
+          u_kd: kD,
+          u_ks: kS,
+          u_specularExp: specularExp,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
           u_mat4_transform: mRotTrans,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),

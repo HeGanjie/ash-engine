@@ -15,6 +15,9 @@ export class Mesh {
   verticesColor = [];
   faces = [];
   albedo = 0.18;
+  kD = 0.98; // phong model diffuse weight
+  kS = 0.02; // phong model specular weight
+  specularExp = 1;   // phong specular exponent
   name = null;
   // Material
 
