@@ -54,7 +54,10 @@ export class DistantLight extends Light {
 
   calcProjectAndWorldToLightMatrix(scene) {
     let {direction: lightDirection} = this;
-    // TODO 计算实际边界
+    // 计算合理边界：摄像机能看到的物体，再投影到发光平面，最后取得偏移范围
+    // TODO 1. 找出摄像机能看到的物体（顶点），优化：将所有物体投影到屏幕，如果边缘超出屏幕则取屏幕边缘的点
+    // TODO 2. 将物体（顶点）投影到发光平面
+    // TODO 3. 取得偏移范围
     let w2l = mat4.lookAt(mat4.create(),
       vec3.scale(vec3.create(), lightDirection, -3),
       lightDirection,

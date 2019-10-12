@@ -19,7 +19,7 @@ export default class ShadowMapRenderer {
     let programInfo = createProgramInfo(gl, shaderSources);
 
     let bufferInfos = scene.meshes.map(mesh => {
-      let {vertices, faces} = mesh;
+      let {vertices, faces} = mesh.geometry;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
         position: {
@@ -95,7 +95,6 @@ export default class ShadowMapRenderer {
     // 绘制 shadowMap
     let {meshes, lights} = scene;
 
-    // TODO 调试时直接将 color[debugIdx] 写入到 color[0] 即可
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
 
@@ -113,15 +112,16 @@ export default class ShadowMapRenderer {
 
     for (let i = 0; i < meshes.length; i++) {
       let mesh = meshes[i];
-      let {rotation, position} = mesh;
-      let mRotTran = mat4.fromRotationTranslation(mat4.create(), quat.fromEuler(quat.create(), ...rotation), position);
+      let {rotation, position, scale} = mesh;
+      let qRot = quat.fromEuler(quat.create(), ...rotation)
+      let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);
 
       const uMat4ProjW2lTransforms = flatMap(lights, l => {
         if (l instanceof DistantLight) {
-          return mat4.multiply(mat4.create(), l.mat4_proj_w2l, mRotTran)
+          return mat4.multiply(mat4.create(), l.mat4_proj_w2l, mTransform)
         } else {
           return l.mat4_proj_w2l_arr.map(mat4_proj_w2l => {
-            return mat4.multiply(mat4.create(), mat4_proj_w2l, mRotTran)
+            return mat4.multiply(mat4.create(), mat4_proj_w2l, mTransform)
           })
         }
       });

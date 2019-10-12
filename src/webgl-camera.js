@@ -41,7 +41,7 @@ export class Camera {
     let programInfo = createProgramInfo(gl, shaderSources);
 
     let bufferInfos = scene.meshes.map(mesh => {
-      let {faces, normals, vertices, verticesColor} = mesh;
+      let {faces, normals, vertices} = mesh.geometry;
 
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
@@ -56,7 +56,7 @@ export class Camera {
         color: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({V}) => {
-            const color = verticesColor[V];
+            const color = mesh.getVerticesColorByIndex(V)
             return [color.r, color.g, color.b]
           })),
         },
@@ -144,11 +144,13 @@ export class Camera {
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
-      let {rotation, position, albedo, kD, kS, specularExp} = mesh;
-      let mRo = mat4.fromQuat(mat4.create(), quat.fromEuler(quat.create(), ...rotation));
-      let mRotTrans = mat4.translate(mat4.create(), mRo, position);
+      let {rotation, position, scale} = mesh;
+      let {albedo, kD, kS, specularExp} = mesh.material;
+      let qRot = quat.fromEuler(quat.create(), ...rotation)
+      let mRo = mat4.fromQuat(mat4.create(), qRot);
+      let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);
 
-      let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mRotTrans);
+      let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mTransform);
 
       let m4_w2c_rot = mat4.multiply(mat4.create(), w2c, mRo);
 
@@ -158,13 +160,13 @@ export class Camera {
           u_ks: kS,
           u_specularExp: specularExp,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
-          u_mat4_transform: mRotTrans,
+          u_mat4_transform: mTransform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
         },
         scene.lights
           .filter(l => l instanceof DistantLight)
           .reduce((acc, curr, idx) => {
-            acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.mat4_proj_w2l, mRotTrans);
+            acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.mat4_proj_w2l, mTransform);
             return acc
           }, {}),
         scene.lights
@@ -172,7 +174,7 @@ export class Camera {
           .reduce((acc, curr, idx) => {
             let {mat4_proj_w2l_arr} = curr;
             let mergedData = flatMap(mat4_proj_w2l_arr, ppW2l => {
-              let m = mat4.multiply(mat4.create(), ppW2l, mRotTrans);
+              let m = mat4.multiply(mat4.create(), ppW2l, mTransform);
               return [...m]
             });
             acc[`u_pointLights[${idx}].proj_w2l_transform`] = mergedData;
