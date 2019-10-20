@@ -8,13 +8,16 @@ import {
   resizeCanvasToDisplaySize,
   setUniforms
 } from './webgl-utils'
-import {flatMap, sumBy, take} from 'lodash'
-import {renderShadowMap} from "./constants";
+import {flatMap, sumBy, take, isNil, isEmpty} from 'lodash'
 import {DistantLight} from "./distant-light";
 import ShadowMapRenderer from "./shadow-map-renderer";
 import {PointLight} from "./point-light";
 
 let {PI, tan, floor, ceil, min, max} = Math;
+
+function isPowerOf2(value) {
+  return (value & (value - 1)) === 0;
+}
 
 export class Camera {
   position = vec3.create();
@@ -42,25 +45,52 @@ export class Camera {
       });
     let programInfo = createProgramInfo(gl, shaderSources);
 
+    let mainTextures = scene.meshes.map(mesh => {
+      let {color, diffuseMap} = mesh.material
+
+      let texture = gl.createTexture()
+      if (!diffuseMap) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        // Fill the texture with a 1x1 blue pixel.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+          new Uint8Array([color.r * 255, color.g * 255, color.b * 255, 255]));
+        return texture
+      }
+      gl.bindTexture(gl.TEXTURE_2D, texture)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, diffuseMap)
+
+      // Check if the image is a power of 2 in both dimensions.
+      if (isPowerOf2(diffuseMap.width) && isPowerOf2(diffuseMap.height)) {
+        // Yes, it's a power of 2. Generate mips.
+        gl.generateMipmap(gl.TEXTURE_2D)
+      } else {
+        // No, it's not a power of 2. Turn off mips and set wrapping to clamp to edge
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      }
+      return texture
+    })
+
     let bufferInfos = scene.meshes.map(mesh => {
       let {faces, normals, vertices} = mesh.geometry;
-
+      let {diffuseMapTexcoords} = mesh.material
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
         position: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
         },
+        texcoord: {
+          numComponents: 2,
+          data: flatMap(faces, f => flatMap(f.data, ({T}) => {
+            return isNil(T) || isEmpty(diffuseMapTexcoords) ? [0, 0] : [...diffuseMapTexcoords[T]]
+          }))
+        },
         normal: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({N}) => [...normals[N]])),
-        },
-        color: {
-          numComponents: 3,
-          data: flatMap(faces, f => flatMap(f.data, ({V}) => {
-            const color = mesh.getVerticesColorByIndex(V)
-            return [color.r, color.g, color.b]
-          })),
         },
         indices:  {
           numComponents: 3,
@@ -77,6 +107,7 @@ export class Camera {
     this.webglConf = {
       programInfo,
       bufferInfos,
+      mainTextures,
       vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
       numDistantLightCount
     };
@@ -84,10 +115,6 @@ export class Camera {
 
   render(scene, gl, fov = PI / 2) {
     this.shadowMapRenderer.renderShadowMap(scene, gl);
-    if (renderShadowMap) {
-      // using spector.js
-      return
-    }
     let {
       numShadowMapTextureCount,
       texture2dArr
@@ -100,6 +127,7 @@ export class Camera {
     let {
       programInfo,
       bufferInfos,
+      mainTextures,
       vaos,
       numDistantLightCount
     } = this.webglConf;
@@ -147,7 +175,7 @@ export class Camera {
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position, scale} = mesh;
-      let {albedo, kD, kS, specularExp} = mesh.material;
+      let {albedo, kD, kS, specularExp, diffuseMap} = mesh.material;
       let qRot = quat.fromEuler(quat.create(), ...rotation)
       let mRo = mat4.fromQuat(mat4.create(), qRot);
       let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);
@@ -165,6 +193,7 @@ export class Camera {
           u_mat4_transform: mTransform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
         },
+        mainTextures[i] ? {u_mainTexture: mainTextures[i]} : undefined,
         scene.lights
           .filter(l => l instanceof DistantLight)
           .reduce((acc, curr, idx) => {

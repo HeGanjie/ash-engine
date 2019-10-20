@@ -9,7 +9,7 @@ precision mediump int;
 
 in vec4 a_position;
 in vec3 a_normal;
-in vec3 a_color;
+in vec2 a_texcoord;
 
 uniform mat4 u_mat4_pp_w2c_transform;
 uniform mat4 u_mat4_transform;
@@ -18,14 +18,14 @@ uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 
 out vec3 v_normal;
-out vec3 v_color;
+out vec2 v_texcoord;
 out vec3 v_fragWorldPos;
 out vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS];
 
 void main() {
     gl_Position = u_mat4_pp_w2c_transform * a_position;
     v_fragWorldPos = (u_mat4_transform * a_position).xyz;
-    v_color = a_color;
+    v_texcoord = a_texcoord;
 
     // 将法向量传到片断着色器
     v_normal = mat3(u_mat4_w2c_rot_inv_T) * a_normal;

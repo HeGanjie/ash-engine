@@ -43,7 +43,6 @@ export default class ShadowMapRenderer {
 
     // 创建 textureArray 材质
     let texture2dArr = gl.createTexture()
-    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture2dArr);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);

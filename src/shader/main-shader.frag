@@ -20,9 +20,10 @@ uniform float u_specularExp;
 uniform vec3 u_cameraPos;
 // https://github.com/WebGLSamples/WebGL2Samples/blob/master/samples/texture_2d_array.html
 uniform sampler2DArray u_texShadowMapArr;
+uniform sampler2D u_mainTexture;
 
 in vec3 v_normal;
-in vec3 v_color;
+in vec2 v_texcoord;
 in vec3 v_fragWorldPos;
 in vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
 
@@ -40,6 +41,7 @@ int lookupCubeFace(vec3 v) {
 }
 
 void main() {
+    vec3 pointColor = texture(u_mainTexture, v_texcoord).rgb;
     glFragColor = vec4(0, 0, 0, 1);
 //    glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
 
@@ -62,7 +64,7 @@ void main() {
 
         vec3 diffuse = illuminated
             * diffuseSurfacePower(u_albedoDivPI, u_distantLight.intensity, u_distantLight.reverseLightDirection, normal)
-            * v_color
+            * pointColor
             * u_distantLight.color;
 
         float specular = illuminated
@@ -94,7 +96,7 @@ void main() {
         float attenuation = 1.0 / (4.0 * M_PI * distance * distance);
         vec3 diffuse = illuminated
             * diffuseSurfacePower(u_albedoDivPI, u_pointLight.intensity, normalize(-lightDir), normal)
-            * v_color
+            * pointColor
             * u_pointLight.color
             * attenuation;
 
