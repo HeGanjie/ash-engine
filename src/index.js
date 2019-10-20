@@ -57,7 +57,7 @@ let pointLight2 = new PointLight(
 );
 let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1, pointLight2]);
 
-let camera = new Camera(canvas.width, canvas.height);
+let camera = new Camera();
 camera.position = vec3.fromValues(0, 2, 3);
 camera.target = vec3.fromValues(0, -1, 0);
 

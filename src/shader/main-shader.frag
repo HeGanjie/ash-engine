@@ -5,20 +5,11 @@ precision mediump sampler2DArray;
 
 #define M_PI 3.141592653589793
 
-struct DistantLight {
-    vec3 direction;
-    vec3 color;
-    float intensity;
-    mat4 op_w2l_transform;
-    vec3 reverseLightDirection;
-};
-
-struct PointLight {
-    vec3 position;
-    vec3 color;
-    float intensity;
-    mat4 proj_w2l_transform[6];
-};
+#pragma glslify: DistantLight = require(./src/shader/distant-light.glsl)
+#pragma glslify: PointLight = require(./src/shader/point-light.glsl)
+#pragma glslify: diffuseSurfacePower = require(./src/shader/diffuse-surface-power.glsl)
+// float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
+#pragma glslify: phong = require(glsl-specular-phong)
 
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
@@ -54,7 +45,7 @@ void main() {
 
     // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
     vec3 normal = normalize(v_normal);
-    vec3 viewDirReverse = normalize(u_cameraPos - v_fragWorldPos);
+    vec3 viewDir = normalize(v_fragWorldPos - u_cameraPos);
 
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         DistantLight u_distantLight = u_distantLights[i];
@@ -70,16 +61,13 @@ void main() {
         float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.01 ? 1 : 0
 
         vec3 diffuse = illuminated
-            * u_albedoDivPI
-            * u_distantLight.intensity
-            * max(0.0, dot(normal, u_distantLight.reverseLightDirection))
+            * diffuseSurfacePower(u_albedoDivPI, u_distantLight.intensity, u_distantLight.reverseLightDirection, normal)
             * v_color
             * u_distantLight.color;
 
-        vec3 R = reflect(u_distantLight.direction, normal);
         float specular = illuminated
             * u_distantLight.intensity
-            * pow(max(0.0, dot(R, viewDirReverse)), u_specularExp);
+            * phong(u_distantLight.direction, viewDir, normal, u_specularExp);
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
@@ -105,17 +93,14 @@ void main() {
         float distance = length(lightDir);
         float attenuation = 1.0 / (4.0 * M_PI * distance * distance);
         vec3 diffuse = illuminated
-            * u_albedoDivPI
-            * u_pointLight.intensity
-            * max(0.0, dot(normal, normalize(-lightDir)))
+            * diffuseSurfacePower(u_albedoDivPI, u_pointLight.intensity, normalize(-lightDir), normal)
             * v_color
             * u_pointLight.color
             * attenuation;
 
-        vec3 R = reflect(normalize(lightDir), normal);
         float specular = illuminated
             * u_pointLight.intensity
-            * pow(max(0.0, dot(R, viewDirReverse)), u_specularExp)
+            * phong(normalize(lightDir), viewDir, normal, u_specularExp)
             * attenuation;
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;

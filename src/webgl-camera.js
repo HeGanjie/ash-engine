@@ -1,7 +1,13 @@
 import {mat4, quat, vec3} from "gl-matrix";
 import mainVertShader from './shader/main-shader.vert'
 import mainFragShader from './shader/main-shader.frag'
-import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from "./webgl-utils";
+import {
+  createBufferInfoFromArrays,
+  createProgramInfo,
+  createVAOFromBufferInfo,
+  resizeCanvasToDisplaySize,
+  setUniforms
+} from './webgl-utils'
 import {flatMap, sumBy, take} from 'lodash'
 import {renderShadowMap} from "./constants";
 import {DistantLight} from "./distant-light";
@@ -11,17 +17,13 @@ import {PointLight} from "./point-light";
 let {PI, tan, floor, ceil, min, max} = Math;
 
 export class Camera {
-  width = 400;
-  height = 300;
   position = vec3.create();
   target = vec3.create();
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
   shadowMapRenderer = null;
 
-  constructor(width, height, nearClippingPlaneDistance = 0.1, farClippingPlaneDistance = 1000) {
-    this.width = width;
-    this.height = height;
+  constructor(nearClippingPlaneDistance = 0.1, farClippingPlaneDistance = 1000) {
     this.nearClippingPlaneDistance = nearClippingPlaneDistance;
     this.farClippingPlaneDistance = farClippingPlaneDistance;
     this.shadowMapRenderer = new ShadowMapRenderer()
@@ -101,10 +103,10 @@ export class Camera {
       vaos,
       numDistantLightCount
     } = this.webglConf;
-    //webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+    resizeCanvasToDisplaySize(gl.canvas)
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    gl.clearColor(0, 0, 0, 0);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
@@ -112,7 +114,7 @@ export class Camera {
     gl.useProgram(programInfo.program);
 
     let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
-    let ppMatrix = mat4.perspective(mat4.create(), fov, this.width / this.height, 1, 20);
+    let ppMatrix = mat4.perspective(mat4.create(), fov, gl.canvas.width / gl.canvas.height, 1, 20);
     let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
 
     const uniformOfLights = scene.lights

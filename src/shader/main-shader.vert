@@ -3,20 +3,9 @@
 precision mediump float;
 precision mediump int;
 
-struct DistantLight {
-    vec3 direction;
-    vec3 color;
-    float intensity;
-    mat4 op_w2l_transform;
-    vec3 reverseLightDirection;
-};
+#pragma glslify: DistantLight = require(./src/shader/distant-light.glsl)
 
-struct PointLight {
-    vec3 position;
-    vec3 color;
-    float intensity;
-    mat4 proj_w2l_transform[6];
-};
+#pragma glslify: PointLight = require(./src/shader/point-light.glsl)
 
 in vec4 a_position;
 in vec3 a_normal;
