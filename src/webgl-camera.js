@@ -45,33 +45,21 @@ export class Camera {
       });
     let programInfo = createProgramInfo(gl, shaderSources);
 
-    let mainTextures = scene.meshes.map(mesh => {
-      let {color, diffuseMap} = mesh.material
+    const srcImg = scene.mainTexture
+    let mainWebglTexture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, mainWebglTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcImg)
 
-      let texture = gl.createTexture()
-      if (!diffuseMap) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-
-        // Fill the texture with a 1x1 blue pixel.
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-          new Uint8Array([color.r * 255, color.g * 255, color.b * 255, 255]));
-        return texture
-      }
-      gl.bindTexture(gl.TEXTURE_2D, texture)
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, diffuseMap)
-
-      // Check if the image is a power of 2 in both dimensions.
-      if (isPowerOf2(diffuseMap.width) && isPowerOf2(diffuseMap.height)) {
-        // Yes, it's a power of 2. Generate mips.
-        gl.generateMipmap(gl.TEXTURE_2D)
-      } else {
-        // No, it's not a power of 2. Turn off mips and set wrapping to clamp to edge
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-      }
-      return texture
-    })
+    // Check if the image is a power of 2 in both dimensions.
+    if (isPowerOf2(srcImg.width) && isPowerOf2(srcImg.height)) {
+      // Yes, it's a power of 2. Generate mips.
+      gl.generateMipmap(gl.TEXTURE_2D)
+    } else {
+      // No, it's not a power of 2. Turn off mips and set wrapping to clamp to edge
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    }
 
     let bufferInfos = scene.meshes.map(mesh => {
       let {faces, normals, vertices} = mesh.geometry;
@@ -107,7 +95,7 @@ export class Camera {
     this.webglConf = {
       programInfo,
       bufferInfos,
-      mainTextures,
+      mainTexture: mainWebglTexture,
       vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
       numDistantLightCount
     };
@@ -127,7 +115,7 @@ export class Camera {
     let {
       programInfo,
       bufferInfos,
-      mainTextures,
+      mainTexture,
       vaos,
       numDistantLightCount
     } = this.webglConf;
@@ -192,8 +180,8 @@ export class Camera {
           u_mat4_pp_w2c_transform: pp_w2c_transform,
           u_mat4_transform: mTransform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
+          u_mainTexture: mainTexture
         },
-        mainTextures[i] ? {u_mainTexture: mainTextures[i]} : undefined,
         scene.lights
           .filter(l => l instanceof DistantLight)
           .reduce((acc, curr, idx) => {

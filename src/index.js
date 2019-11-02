@@ -38,9 +38,9 @@ async function genScene() {
   let boxSpecularImg = await loadImage(boxSpecularUrl)
 
   let cubeMaterial = new Material({
-    color: { r: 1, g: 1, b: 1 },
+    // color: { r: 1, g: 1, b: 1 },
     diffuseMap: boxImg,
-    specularMap: boxSpecularImg,
+    // specularMap: boxSpecularImg,
     kS: 0.15,
     kD: 1 - 0.15,
     specularExp: 250
