@@ -82,6 +82,15 @@ export class Geometry {
   })
 }
 
+const tempCanvas = document.createElement('canvas');
+tempCanvas.width = 1;
+tempCanvas.height = 1;
+const tempCanvasCtx = tempCanvas.getContext("2d");
+tempCanvasCtx.fillStyle = `rgba(255, 255, 255, 1)`;
+tempCanvasCtx.fillRect(0, 0, 1, 1);
+const defaultSpecularMap = new Image()
+defaultSpecularMap.src = tempCanvas.toDataURL("image/png")
+
 export class Material {
   diffuseMap = null // Image or TODO Image[]
   specularMap = null
@@ -99,17 +108,13 @@ export class Material {
     Object.assign(this, opts)
     // if no diffuseMap but color, convert color to img
     if (!this.diffuseMap && opts.color) {
-      let canvas = document.createElement('canvas');
-      canvas.width = 1;
-      canvas.height = 1;
-      let ctx = canvas.getContext("2d");
       let {r, g, b, a} = opts.color
-      ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
-      ctx.fillRect(0, 0, 1, 1);
-      let dataUrl = canvas.toDataURL("image/png")
+      tempCanvasCtx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
+      tempCanvasCtx.fillRect(0, 0, 1, 1);
       this.diffuseMap = new Image()
-      this.diffuseMap.src = dataUrl
+      this.diffuseMap.src = tempCanvas.toDataURL("image/png")
     }
+    this.specularMap = this.specularMap || defaultSpecularMap
   }
 }
 
@@ -231,28 +236,21 @@ export class Scene {
       }
     }
 
-    // function generateTexcoords(img) { }
-
-    debugger
-    this.meshes.forEach(m => {
-      let {material, geometry} = m
-      let {faces, vertices, normals} = geometry;
-      if (!(material.diffuseMap instanceof Image)) {
-        throw new Error('Unexpected diffuseMap data')
-      }
+    function generateTexcoords(img, w_geometry, w_texcoords, faceVerticesPropName) {
+      let {faces, vertices, normals} = w_geometry;
       // 取得材质位置，转换为 UV
       // 生成材质坐标
-      let {x, y} = getPositionFromArrangement(material.diffuseMap)
+      let {x, y} = getPositionFromArrangement(img)
       let uv0 = [x / mainTextureWidth, y / mainTextureHeight]
-      let uv1 = [(x + material.diffuseMap.width) / mainTextureWidth, (y + material.diffuseMap.height) / mainTextureHeight]
+      let uv1 = [(x + img.width) / mainTextureWidth, (y + img.height) / mainTextureHeight]
 
       // 生成材质坐标
       // 1. 将面旋转至 x-y 平面
       // 2. 将顶点位置映射到 x：[u0, u1] y: [v0, v1] 里面
       // 3. 设置 m.material.diffuseMapTexcoords 和 face.data[].T
 
+
       // TODO 去重
-      let texcoords = m.material.diffuseMapTexcoords || []
       faces.forEach(f => {
         // 立方体顶部和底部的材质映射可能会出问题，因为不知道哪面向上
         let transformedVec3Arr = getXYPlantVerticesPosForFace(f, normals[f.data[0].N], vertices) // vec3[]
@@ -277,12 +275,26 @@ export class Scene {
         let uvArr = transformedVec3Arr.map(v3 => vec3.transformMat4(vec3.create(), v3, mTransform))
 
         f.data.forEach((vInf, vIdx) => {
-          vInf.T = texcoords.length
+          vInf[faceVerticesPropName] = w_texcoords.length
           const uv = uvArr[vIdx]
-          texcoords.push(vec2.fromValues(uv[0], uv[1]))
+          w_texcoords.push(vec2.fromValues(uv[0], uv[1]))
         })
       })
-      m.material.diffuseMapTexcoords = texcoords
+    }
+
+    this.meshes.forEach(m => {
+      let {material, geometry} = m
+      if (!(material.diffuseMap instanceof Image)) {
+        throw new Error('Unexpected diffuseMap data')
+      }
+      m.material.diffuseMapTexcoords = m.material.diffuseMapTexcoords || []
+      generateTexcoords(material.diffuseMap, geometry, m.material.diffuseMapTexcoords, 'T')
+
+      if (!(material.specularMap instanceof Image)) {
+        throw new Error('Unexpected specularMap data')
+      }
+      m.material.specularMapTexcoords = m.material.specularMapTexcoords || []
+      generateTexcoords(material.specularMap, geometry, m.material.specularMapTexcoords, 'TS')
     })
   }
 }

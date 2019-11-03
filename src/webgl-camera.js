@@ -63,17 +63,23 @@ export class Camera {
 
     let bufferInfos = scene.meshes.map(mesh => {
       let {faces, normals, vertices} = mesh.geometry;
-      let {diffuseMapTexcoords} = mesh.material
+      let {diffuseMapTexcoords, specularMapTexcoords} = mesh.material
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
         position: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
         },
-        texcoord: {
+        diffuse_texcoord: {
           numComponents: 2,
           data: flatMap(faces, f => flatMap(f.data, ({T}) => {
             return isNil(T) || isEmpty(diffuseMapTexcoords) ? [0, 0] : [...diffuseMapTexcoords[T]]
+          }))
+        },
+        specular_texcoord: {
+          numComponents: 2,
+          data: flatMap(faces, f => flatMap(f.data, ({TS}) => {
+            return isNil(TS) || isEmpty(specularMapTexcoords) ? [0, 0] : [...specularMapTexcoords[TS]]
           }))
         },
         normal: {
@@ -163,7 +169,7 @@ export class Camera {
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position, scale} = mesh;
-      let {albedo, kD, kS, specularExp, diffuseMap} = mesh.material;
+      let {albedo, kD, kS, specularExp} = mesh.material;
       let qRot = quat.fromEuler(quat.create(), ...rotation)
       let mRo = mat4.fromQuat(mat4.create(), qRot);
       let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);

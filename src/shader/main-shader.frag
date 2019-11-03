@@ -23,7 +23,8 @@ uniform sampler2DArray u_texShadowMapArr;
 uniform sampler2D u_mainTexture;
 
 in vec3 v_normal;
-in vec2 v_texcoord;
+in vec2 v_diffuse_texcoord;
+in vec2 v_specular_texcoord;
 in vec3 v_fragWorldPos;
 in vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
 
@@ -41,7 +42,8 @@ int lookupCubeFace(vec3 v) {
 }
 
 void main() {
-    vec3 pointColor = texture(u_mainTexture, v_texcoord).rgb;
+    vec3 pointColor = texture(u_mainTexture, v_diffuse_texcoord).rgb;
+    float pointSpecularColor = texture(u_mainTexture, v_specular_texcoord).r;
     glFragColor = vec4(0, 0, 0, 1);
 //    glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
 
@@ -69,6 +71,7 @@ void main() {
 
         float specular = illuminated
             * u_distantLight.intensity
+            * pointSpecularColor
             * phong(u_distantLight.direction, viewDir, normal, u_specularExp);
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
@@ -102,6 +105,7 @@ void main() {
 
         float specular = illuminated
             * u_pointLight.intensity
+            * pointSpecularColor
             * phong(normalize(lightDir), viewDir, normal, u_specularExp)
             * attenuation;
 
