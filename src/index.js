@@ -4,7 +4,8 @@ import { Camera } from "./webgl-camera";
 import Stats from "stats.js";
 import {DistantLight} from "./distant-light";
 import {PointLight} from "./point-light";
-import wallImgUrl from './assets/wall.jpg'
+import wallImgUrl from './assets/brickwall.jpg'
+import wallNormalImgUrl from './assets/brickwall_normal.jpg'
 import boxImgUrl from './assets/container2.png'
 import boxSpecularUrl from './assets/container2_specular.png'
 
@@ -34,6 +35,7 @@ async function loadImage(assetsUrl) {
 
 async function genScene() {
   let wallImg = await loadImage(wallImgUrl)
+  let wallNormalImg = await loadImage(wallNormalImgUrl)
   let boxImg = await loadImage(boxImgUrl)
   let boxSpecularImg = await loadImage(boxSpecularUrl)
 
@@ -50,6 +52,7 @@ async function genScene() {
   let planeMaterial = new Material({
     // color: { r: 0.5, g: 0.5, b: 0.5 },
     diffuseMap: wallImg,
+    normalMap: wallNormalImg,
     kS: 0.04,
     kD: 1 - 0.04,
     specularExp: 2

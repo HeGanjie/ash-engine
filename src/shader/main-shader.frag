@@ -22,9 +22,10 @@ uniform vec3 u_cameraPos;
 uniform sampler2DArray u_texShadowMapArr;
 uniform sampler2D u_mainTexture;
 
-in vec3 v_normal;
+in mat3 v_TBN;
 in vec2 v_diffuse_texcoord;
 in vec2 v_specular_texcoord;
+in vec2 v_normal_texcoord;
 in vec3 v_fragWorldPos;
 in vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
 
@@ -44,11 +45,12 @@ int lookupCubeFace(vec3 v) {
 void main() {
     vec3 pointColor = texture(u_mainTexture, v_diffuse_texcoord).rgb;
     float pointSpecularColor = texture(u_mainTexture, v_specular_texcoord).r;
-    glFragColor = vec4(0, 0, 0, 1);
-//    glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
+    vec3 normalMapPointColor = normalize(texture(u_mainTexture, v_normal_texcoord).rgb * 2.0 - 1.0);
 
-    // 由于 v_normal 是插值出来的，和有可能不是单位向量，可以用 normalize 将其单位化。
-    vec3 normal = normalize(v_normal);
+    glFragColor = vec4(0, 0, 0, 1);
+//  glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
+
+    vec3 normal = normalize(v_TBN * normalMapPointColor); // TODO move to vertex shader
     vec3 viewDir = normalize(v_fragWorldPos - u_cameraPos);
 
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {

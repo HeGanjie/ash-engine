@@ -63,7 +63,7 @@ export class Camera {
 
     let bufferInfos = scene.meshes.map(mesh => {
       let {faces, normals, vertices} = mesh.geometry;
-      let {diffuseMapTexcoords, specularMapTexcoords} = mesh.material
+      let {diffuseMapTexcoords, specularMapTexcoords, normalMapTexcoords} = mesh.material
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let arrays = {
         position: {
@@ -82,14 +82,24 @@ export class Camera {
             return isNil(TS) || isEmpty(specularMapTexcoords) ? [0, 0] : [...specularMapTexcoords[TS]]
           }))
         },
+        normal_texcoord: {
+          numComponents: 2,
+          data: flatMap(faces, f => flatMap(f.data, ({TN}) => {
+            return isNil(TN) || isEmpty(normalMapTexcoords) ? [0, 0] : [...normalMapTexcoords[TN]]
+          }))
+        },
         normal: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({N}) => [...normals[N]])),
         },
+        tangent: {
+          numComponents: 3,
+          data: flatMap(faces, f => flatMap(f.data, () => [...f.tangent])),
+        },
         indices:  {
           numComponents: 3,
           data: flatMap(faces, (f, fIdx) => {
-            let offset = sumBy(take(faces, fIdx), f => f.data.length);
+            let offset = sumBy(take(faces, fIdx), f => f.data.length); // TODO optimize by reduce
             return f.triangleIndices.map(ti => ti + offset)
           })
         },

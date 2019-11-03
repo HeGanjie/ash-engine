@@ -83,13 +83,19 @@ export class Geometry {
 }
 
 const tempCanvas = document.createElement('canvas');
-tempCanvas.width = 1;
-tempCanvas.height = 1;
+tempCanvas.width = 128;
+tempCanvas.height = 128;
 const tempCanvasCtx = tempCanvas.getContext("2d");
+
 tempCanvasCtx.fillStyle = `rgba(255, 255, 255, 1)`;
-tempCanvasCtx.fillRect(0, 0, 1, 1);
+tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 const defaultSpecularMap = new Image()
 defaultSpecularMap.src = tempCanvas.toDataURL("image/png")
+
+tempCanvasCtx.fillStyle = `rgba(50%, 50%, 100%, 1)`;
+tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+const defaultNormalMap = new Image()
+defaultNormalMap.src = tempCanvas.toDataURL("image/png")
 
 export class Material {
   diffuseMap = null // Image or TODO Image[]
@@ -110,11 +116,12 @@ export class Material {
     if (!this.diffuseMap && opts.color) {
       let {r, g, b, a} = opts.color
       tempCanvasCtx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
-      tempCanvasCtx.fillRect(0, 0, 1, 1);
+      tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       this.diffuseMap = new Image()
       this.diffuseMap.src = tempCanvas.toDataURL("image/png")
     }
     this.specularMap = this.specularMap || defaultSpecularMap
+    this.normalMap = this.normalMap || defaultNormalMap
   }
 }
 
@@ -249,7 +256,6 @@ export class Scene {
       // 2. 将顶点位置映射到 x：[u0, u1] y: [v0, v1] 里面
       // 3. 设置 m.material.diffuseMapTexcoords 和 face.data[].T
 
-
       // TODO 去重
       faces.forEach(f => {
         // 立方体顶部和底部的材质映射可能会出问题，因为不知道哪面向上
@@ -284,6 +290,7 @@ export class Scene {
 
     this.meshes.forEach(m => {
       let {material, geometry} = m
+      // TODO 如果是导入的模型则可以跳过生成坐标的逻辑，直接生成切线向量
       if (!(material.diffuseMap instanceof Image)) {
         throw new Error('Unexpected diffuseMap data')
       }
@@ -295,6 +302,36 @@ export class Scene {
       }
       m.material.specularMapTexcoords = m.material.specularMapTexcoords || []
       generateTexcoords(material.specularMap, geometry, m.material.specularMapTexcoords, 'TS')
+
+      if (!(material.normalMap instanceof Image)) {
+        throw new Error('Unexpected normalMap data')
+      }
+      m.material.normalMapTexcoords = m.material.normalMapTexcoords || []
+      generateTexcoords(material.normalMap, geometry, m.material.normalMapTexcoords, 'TN')
+
+      // 根据 UV 生成切线向量，暂定每个面的切线向量都是唯一的
+      let {faces, vertices} = geometry
+      faces.forEach(f => {
+        let v0 = vertices[f.data[0].V]
+        let v1 = vertices[f.data[1].V]
+        let v2 = vertices[f.data[2].V]
+        let uv0 = m.material.normalMapTexcoords[f.data[0].TN]
+        let uv1 = m.material.normalMapTexcoords[f.data[1].TN]
+        let uv2 = m.material.normalMapTexcoords[f.data[2].TN]
+
+        let edge1 = vec3.subtract(vec3.create(), v1, v0)
+        let edge2 = vec3.subtract(vec3.create(), v2, v0)
+        let deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0)
+        let deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0)
+
+        let fa = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+        let tangent = vec3.fromValues(
+          fa * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+          fa * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+          fa * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+        )
+        f.tangent = vec3.normalize(tangent, tangent)
+      })
     })
   }
 }

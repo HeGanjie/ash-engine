@@ -9,8 +9,10 @@ precision mediump int;
 
 in vec4 a_position;
 in vec3 a_normal;
+in vec3 a_tangent;
 in vec2 a_diffuse_texcoord;
 in vec2 a_specular_texcoord;
+in vec2 a_normal_texcoord;
 
 uniform mat4 u_mat4_pp_w2c_transform;
 uniform mat4 u_mat4_transform;
@@ -18,9 +20,10 @@ uniform mat4 u_mat4_w2c_rot_inv_T;
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 
-out vec3 v_normal;
+out mat3 v_TBN;
 out vec2 v_diffuse_texcoord;
 out vec2 v_specular_texcoord;
+out vec2 v_normal_texcoord;
 out vec3 v_fragWorldPos;
 out vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS];
 
@@ -29,9 +32,13 @@ void main() {
     v_fragWorldPos = (u_mat4_transform * a_position).xyz;
     v_diffuse_texcoord = a_diffuse_texcoord;
     v_specular_texcoord = a_specular_texcoord;
+    v_normal_texcoord = a_normal_texcoord;
 
     // 将法向量传到片断着色器
-    v_normal = mat3(u_mat4_w2c_rot_inv_T) * a_normal;
+    vec3 T = normalize(vec3(u_mat4_w2c_rot_inv_T * vec4(a_tangent, 0.0)));
+    vec3 N = normalize(vec3(u_mat4_w2c_rot_inv_T * vec4(a_normal,  0.0)));
+    vec3 B = cross(N, T);
+    v_TBN = mat3(T, B, N);
 
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         v_shadowMapPosArr[i] = u_distantLights[i].op_w2l_transform * a_position;
