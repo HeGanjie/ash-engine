@@ -83,8 +83,8 @@ export class Geometry {
 }
 
 const tempCanvas = document.createElement('canvas');
-tempCanvas.width = 128;
-tempCanvas.height = 128;
+tempCanvas.width = 2;
+tempCanvas.height = 2;
 const tempCanvasCtx = tempCanvas.getContext("2d");
 
 tempCanvasCtx.fillStyle = `rgba(255, 255, 255, 1)`;
@@ -248,8 +248,8 @@ export class Scene {
       // 取得材质位置，转换为 UV
       // 生成材质坐标
       let {x, y} = getPositionFromArrangement(img)
-      let uv0 = [x / mainTextureWidth, y / mainTextureHeight]
-      let uv1 = [(x + img.width) / mainTextureWidth, (y + img.height) / mainTextureHeight]
+      let uv0 = [(x + 0.5) / mainTextureWidth, (y + 0.5) / mainTextureHeight]
+      let uv1 = [(x + img.width - 0.5) / mainTextureWidth, (y + img.height - 0.5) / mainTextureHeight]
 
       // 生成材质坐标
       // 1. 将面旋转至 x-y 平面
