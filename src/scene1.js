@@ -23,7 +23,11 @@ async function genScene() {
     kD: 1 - 0.15,
     specularExp: 250
   })
-  let cubeMesh = new Mesh("Cube", Geometry.BoxGeometry, cubeMaterial);
+  let cubeMesh = new Mesh({
+    name: "Cube",
+    geometry: Geometry.BoxGeometry,
+    material: cubeMaterial
+  });
 
   let planeMaterial = new Material({
     // color: { r: 0.5, g: 0.5, b: 0.5 },
@@ -33,7 +37,11 @@ async function genScene() {
     kD: 1 - 0.04,
     specularExp: 2
   })
-  let planeMesh = new Mesh("Ground", Geometry.PlaneGeometry, planeMaterial);
+  let planeMesh = new Mesh({
+    name: "Ground",
+    geometry: Geometry.PlaneGeometry,
+    material: planeMaterial
+  });
   planeMesh.position = vec3.fromValues(0, -2, 0);
   planeMesh.scale = vec3.fromValues(10, 1, 10);
 

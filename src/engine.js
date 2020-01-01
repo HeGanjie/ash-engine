@@ -105,6 +105,7 @@ export class Material {
   kD = 0.98; // phong model diffuse weight
   kS = 0.02; // phong model specular weight
   specularExp = 1;   // phong specular exponent
+  selfLuminous = 0;
 
   diffuseMapTexcoords = null; // auto gen
   specularMapTexcoords = null;
@@ -133,10 +134,8 @@ export class Mesh {
   material = null;
   name = null;
 
-  constructor(name, geometry, material) {
-    this.name = name;
-    this.geometry = geometry;
-    this.material = material;
+  constructor(opts) {
+    Object.assign(this, opts)
   }
 
   triangulation() {
