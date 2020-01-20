@@ -3,9 +3,9 @@
 precision mediump float;
 precision mediump int;
 
-#pragma glslify: DistantLight = require(./src/shader/distant-light.glsl)
+#pragma glslify: DistantLight = require(./src/shader-snippets/distant-light.glsl)
 
-#pragma glslify: PointLight = require(./src/shader/point-light.glsl)
+#pragma glslify: PointLight = require(./src/shader-snippets/point-light.glsl)
 
 in vec4 a_position;
 in vec3 a_normal;

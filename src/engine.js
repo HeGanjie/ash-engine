@@ -2,6 +2,8 @@ import {mat4, quat, vec2, vec3} from 'gl-matrix'
 import _ from 'lodash'
 import earcut from 'earcut'
 import {DistantLight} from './distant-light'
+import {buildShader, SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
+import {createProgramInfo} from './webgl-utils'
 
 window.earcut = earcut
 window.vec3 = vec3
@@ -27,6 +29,30 @@ function getXYPlantVerticesPosForFace(face, faceNormal, vertices) {
   return transformedVec3Arr
 }
 
+async function mergeImgs(mainTextureWidth, mainTextureHeight, idealArrangement) {
+  let canvas = document.createElement('canvas');
+  canvas.width = mainTextureWidth;
+  canvas.height = mainTextureHeight;
+  let ctx = canvas.getContext("2d");
+  let y = 0
+  idealArrangement.forEach(layer => {
+    let x = 0
+    layer.forEach(img => {
+      ctx.drawImage(img, x, y)
+      x += img.width
+    })
+    y += layer[0].height
+  })
+
+  return await new Promise(resolve => {
+    const image = new Image()
+    image.src = canvas.toDataURL("image/png")
+
+    image.onload = () => resolve(image)
+  })
+}
+
+
 export class Geometry {
   vertices = null
   normals = null
@@ -35,6 +61,31 @@ export class Geometry {
   constructor(opts) {
     Object.assign(this, opts)
   }
+
+  transform(rotate, move = vec3.fromValues(0, 0, 0), scale = vec3.fromValues(1, 1, 1)) {
+    let qRot = quat.fromEuler(quat.create(), ...rotate)
+    let mRo = mat4.fromQuat(mat4.create(), qRot);
+    let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, move, scale);
+    return new Geometry({
+      vertices: this.vertices.map(pos => vec3.transformMat4(vec3.create(), pos, mTransform)),
+      normals: this.normals.map(dir => vec3.transformMat4(vec3.create(), dir, mRo)),
+      faces: _.cloneDeep(this.faces)
+    })
+  }
+
+  static TrianglePlaneGeometry = new Geometry({
+    vertices: [
+      vec3.fromValues(-0.5, 0, 0),
+      vec3.fromValues(0, 0, -0.5),
+      vec3.fromValues(0.5, 0, 0),
+    ],
+    normals: [
+      vec3.fromValues(0, 1, 0)
+    ],
+    faces: [
+      { data:  [{V: 0, N: 0}, {V: 1, N: 0}, {V: 2, N: 0}] }
+    ]
+  })
 
   static PlaneGeometry = new Geometry({
     vertices: [
@@ -111,6 +162,9 @@ export class Material {
   specularMapTexcoords = null;
   normalMapTexcoords = null;
 
+  shaderImpl = null;
+  programInfo = null;
+
   constructor(opts) {
     Object.assign(this, opts)
     // if no diffuseMap but color, convert color to img
@@ -123,6 +177,15 @@ export class Material {
     }
     this.specularMap = this.specularMap || defaultSpecularMap
     this.normalMap = this.normalMap || defaultNormalMap
+    this.shaderImpl = this.shaderImpl || SHADER_IMPLEMENT_STRATEGY.diffuseMap
+  }
+
+  initProgramInfo(gl, opts) {
+    if (this.programInfo) {
+      return
+    }
+    let [vert, frag] = buildShader(this.shaderImpl, opts)
+    this.programInfo = createProgramInfo(gl, [vert, frag])
   }
 }
 
@@ -165,11 +228,9 @@ export class Scene {
     this.meshes = meshes;
     this.lights = _.orderBy(lights, l => l instanceof DistantLight ? 0 : 1);
     meshes.forEach(m => m.triangulation())
-
-    this.genTexcoordsForMainTexture()
   }
 
-  genTexcoordsForMainTexture() {
+  async genTexcoordsForMainTexture() {
     // 需要计算合并材质的大小，以及子材质的位置
     // 1. 取得全部材质，以及大小
     // 2. 按高度从大到小水平排布材质
@@ -180,6 +241,12 @@ export class Scene {
       let {diffuseMap, specularMap, normalMap} = m.material
       return [diffuseMap, specularMap, normalMap].filter(_.identity)
     })
+    for (let img of allSubTextures) {
+      if (img.width === 0) {
+        await new Promise(resolve => img.onload = resolve)
+      }
+    }
+
     let heightDescTextures = _.orderBy(allSubTextures, tex => tex.height, 'desc')
     let maxWidthOfTextures = _.max(allSubTextures.map(t => t.width))
     function arrangement(heightSortedTextures, mainTextureWidth) {
@@ -211,24 +278,7 @@ export class Scene {
       })
       .reduce((acc, curr) => acc.cost <= curr.cost ? acc : curr)
 
-    function mergeImgs() {
-      let canvas = document.createElement('canvas');
-      canvas.width = mainTextureWidth;
-      canvas.height = mainTextureHeight;
-      let ctx = canvas.getContext("2d");
-      let y = 0
-      idealArrangement.forEach(layer => {
-        let x = 0
-        layer.forEach(img => {
-          ctx.drawImage(img, x, y)
-          x += img.width
-        })
-        y += layer[0].height
-      })
-      return canvas
-    }
-
-    this.mainTexture = mergeImgs()
+    this.mainTexture = await mergeImgs(mainTextureWidth, mainTextureHeight, idealArrangement)
 
     function getPositionFromArrangement(img) {
       let j

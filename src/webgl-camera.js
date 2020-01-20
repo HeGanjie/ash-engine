@@ -1,6 +1,4 @@
 import {mat4, quat, vec3} from "gl-matrix";
-import mainVertShader from './shader/main-shader.vert'
-import mainFragShader from './shader/main-shader.frag'
 import {
   createBufferInfoFromArrays,
   createProgramInfo,
@@ -35,15 +33,14 @@ export class Camera {
   initShader(scene, gl) {
     let numDistantLightCount = scene.lights.filter(l => l instanceof DistantLight).length;
     let numPointLightCount = scene.lights.filter(l => l instanceof PointLight).length;
-    const shaderSources = [mainVertShader, mainFragShader]
-      .map(src => {
-        return src
-          .replace(/NUM_DISTANT_LIGHT/g, numDistantLightCount)
-          .replace(/NUM_POINT_LIGHT/g, numPointLightCount)
-          .replace(/NUM_LIGHTS/g, scene.lights.length)
-          .replace(/NUM_SHADOW_MAPS/g, numDistantLightCount + numPointLightCount * 6)
-      });
-    let programInfo = createProgramInfo(gl, shaderSources);
+
+    let preInjectConstant = {
+      NUM_DISTANT_LIGHT: numDistantLightCount,
+      NUM_POINT_LIGHT: numPointLightCount,
+      NUM_LIGHTS: scene.lights.length,
+      NUM_SHADOW_MAPS: numDistantLightCount + numPointLightCount * 6
+    }
+    scene.meshes.forEach(m => m.material?.initProgramInfo(gl, preInjectConstant))
 
     const srcImg = scene.mainTexture
     let mainWebglTexture = gl.createTexture()
@@ -61,7 +58,7 @@ export class Camera {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     }
 
-    let bufferInfos = scene.meshes.map(mesh => {
+    let bufferInfoAndVaos = scene.meshes.map(mesh => {
       let {faces, normals, vertices} = mesh.geometry;
       let {diffuseMapTexcoords, specularMapTexcoords, normalMapTexcoords} = mesh.material
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
@@ -105,14 +102,16 @@ export class Camera {
         },
       };
 
-      return createBufferInfoFromArrays(gl, arrays);
+      const bufferInfo = createBufferInfoFromArrays(gl, arrays)
+      return {
+        bufferInfo: bufferInfo,
+        vaos: createVAOFromBufferInfo(gl, mesh.material.programInfo, bufferInfo)
+      }
     });
 
     this.webglConf = {
-      programInfo,
-      bufferInfos,
+      bufferInfoAndVaos,
       mainTexture: mainWebglTexture,
-      vaos: bufferInfos.map(bi => createVAOFromBufferInfo(gl, programInfo, bi)),
       numDistantLightCount
     };
   }
@@ -129,10 +128,8 @@ export class Camera {
       this.initShader(scene, gl);
     }
     let {
-      programInfo,
-      bufferInfos,
+      bufferInfoAndVaos,
       mainTexture,
-      vaos,
       numDistantLightCount
     } = this.webglConf;
     resizeCanvasToDisplaySize(gl.canvas)
@@ -142,8 +139,6 @@ export class Camera {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
-
-    gl.useProgram(programInfo.program);
 
     let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
     let ppMatrix = mat4.perspective(mat4.create(), fov, gl.canvas.width / gl.canvas.height, 1, 20);
@@ -170,16 +165,19 @@ export class Camera {
         }
         return acc
       }, {});
-    let uniforms = Object.assign({
+    let commonUniforms = {
       u_texShadowMapArr: texture2dArr,
       u_cameraPos: this.position,
-    }, uniformOfLights);
-    setUniforms(programInfo.uniformSetters, uniforms);
+      ...uniformOfLights
+    };
 
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position, scale} = mesh;
-      let {albedo, kD, kS, specularExp} = mesh.material;
+      let {albedo, kD, kS, specularExp, programInfo} = mesh.material;
+      gl.useProgram(programInfo.program);
+      setUniforms(programInfo.uniformSetters, commonUniforms);
+
       let qRot = quat.fromEuler(quat.create(), ...rotation)
       let mRo = mat4.fromQuat(mat4.create(), qRot);
       let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);
@@ -218,8 +216,8 @@ export class Camera {
       );
       setUniforms(programInfo.uniformSetters, uniforms);
 
-      let bufferInfo = bufferInfos[i];
-      gl.bindVertexArray(vaos[i]);
+      let bufferInfo = bufferInfoAndVaos[i].bufferInfo;
+      gl.bindVertexArray(bufferInfoAndVaos[i].vaos);
 
       gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }

@@ -5,9 +5,9 @@ precision mediump sampler2DArray;
 
 #define M_PI 3.141592653589793
 
-#pragma glslify: DistantLight = require(./src/shader/distant-light.glsl)
-#pragma glslify: PointLight = require(./src/shader/point-light.glsl)
-#pragma glslify: diffuseSurfacePower = require(./src/shader/diffuse-surface-power.glsl)
+#pragma glslify: DistantLight = require(./src/shader-snippets/distant-light.glsl)
+#pragma glslify: PointLight = require(./src/shader-snippets/point-light.glsl)
+#pragma glslify: diffuseSurfacePower = require(./src/shader-snippets/diffuse-surface-power.glsl)
 // float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
 #pragma glslify: phong = require(glsl-specular-phong)
 

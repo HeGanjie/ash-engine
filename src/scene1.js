@@ -8,6 +8,7 @@ import {DistantLight} from './distant-light'
 import {PointLight} from './point-light'
 import {Camera} from './webgl-camera'
 import {loadImage} from './utils'
+import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
 async function genScene() {
   let wallImg = await loadImage(wallImgUrl)
@@ -15,32 +16,32 @@ async function genScene() {
   let boxImg = await loadImage(boxImgUrl)
   let boxSpecularImg = await loadImage(boxSpecularUrl)
 
-  let cubeMaterial = new Material({
-    // color: { r: 1, g: 1, b: 1 },
-    diffuseMap: boxImg,
-    specularMap: boxSpecularImg,
-    kS: 0.15,
-    kD: 1 - 0.15,
-    specularExp: 250
-  })
   let cubeMesh = new Mesh({
     name: "Cube",
     geometry: Geometry.BoxGeometry,
-    material: cubeMaterial
+    material: new Material({
+      // color: { r: 1, g: 1, b: 1 },
+      diffuseMap: boxImg,
+      specularMap: boxSpecularImg,
+      kS: 0.15,
+      kD: 1 - 0.15,
+      specularExp: 250,
+      shaderImpl: SHADER_IMPLEMENT_STRATEGY.lambert
+    })
   });
 
-  let planeMaterial = new Material({
-    // color: { r: 0.5, g: 0.5, b: 0.5 },
-    diffuseMap: wallImg,
-    normalMap: wallNormalImg,
-    kS: 0.04,
-    kD: 1 - 0.04,
-    specularExp: 2
-  })
   let planeMesh = new Mesh({
     name: "Ground",
     geometry: Geometry.PlaneGeometry,
-    material: planeMaterial
+    material: new Material({
+      // color: { r: 0.5, g: 0.5, b: 0.5 },
+      diffuseMap: wallImg,
+      normalMap: wallNormalImg,
+      kS: 0.04,
+      kD: 1 - 0.04,
+      specularExp: 2,
+      shaderImpl: SHADER_IMPLEMENT_STRATEGY.lambert
+    })
   });
   planeMesh.position = vec3.fromValues(0, -2, 0);
   planeMesh.scale = vec3.fromValues(10, 1, 10);
@@ -67,6 +68,8 @@ async function genScene() {
     500
   );
   let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1, pointLight2]);
+  await scene.genTexcoordsForMainTexture()
+
   let camera = new Camera();
   camera.position = vec3.fromValues(0, 2, 3);
   camera.target = vec3.fromValues(0, -1, 0);

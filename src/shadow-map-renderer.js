@@ -1,11 +1,10 @@
-import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from "./webgl-utils";
-import distantLightVertShader from "./shader/shadow-map.vert";
-import distantLightFragShader from "./shader/shadow-map.frag";
-import {targetTextureHeight, targetTextureWidth} from "./constants";
-import {mat4, quat} from "gl-matrix";
+import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from './webgl-utils'
+import {targetTextureHeight, targetTextureWidth} from './constants'
+import {mat4, quat} from 'gl-matrix'
 import {flatMap, sumBy, take} from 'lodash'
-import {DistantLight} from "./distant-light";
-import {PointLight} from "./point-light";
+import {DistantLight} from './distant-light'
+import {PointLight} from './point-light'
+import {buildShader, SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
 
 export default class ShadowMapRenderer {
@@ -15,7 +14,7 @@ export default class ShadowMapRenderer {
     let numDistantLightCount = scene.lights.filter(l => l instanceof DistantLight).length;
     let numPointLightCount = scene.lights.filter(l => l instanceof PointLight).length;
     const numShadowMapTextureCount = numDistantLightCount + numPointLightCount * 6;
-    const shaderSources = [distantLightVertShader, distantLightFragShader];
+    const shaderSources = buildShader(SHADER_IMPLEMENT_STRATEGY.shadowMap);
     let programInfo = createProgramInfo(gl, shaderSources);
 
     let bufferInfos = scene.meshes.map(mesh => {
@@ -88,6 +87,9 @@ export default class ShadowMapRenderer {
       numShadowMapTextureCount,
       texture2dArr
     } = this.shadowMapConf;
+    if (numShadowMapTextureCount === 0) {
+      return
+    }
 
     // 计算 world to light space 矩阵
     // 计算投影矩阵

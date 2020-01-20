@@ -1,35 +1,33 @@
 import {Geometry, Material, Mesh, Scene} from './engine'
 import {vec3} from 'gl-matrix'
 import {Camera} from './webgl-camera'
+import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
 async function genScene() {
   let meshes = [
     new Mesh({
       name: 'Ground',
-      geometry: Geometry.PlaneGeometry,
-      material: new Material({color: {r: 0.5, g: 0.5, b: 0.5}}),
+      geometry: Geometry.PlaneGeometry.transform(vec3.fromValues(90, 0, 0)),
+      material: new Material({
+        color: {r: 0.5, g: 0.5, b: 0.5},
+        shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
+      }),
       scale: vec3.fromValues(10, 10, 1)
     }),
     new Mesh({
       name: 'triangle',
-      geometry: new Geometry({
-        vertices: [
-          vec3.fromValues(-0.5, 0, 0),
-          vec3.fromValues(0, 0.5, 0),
-          vec3.fromValues(0.5, 0, 0),
-        ],
-        normals: [
-          vec3.fromValues(0, 0, 1)
-        ],
-        faces: [
-          { data:  [{V: 0, N: 0}, {V: 1, N: 0}, {V: 2, N: 0}] }
-        ]
+      geometry: Geometry.TrianglePlaneGeometry.transform(vec3.fromValues(90, 0, 0)),
+      material: new Material({
+        color: {r: 1, g: 1, b: 0.5},
+        selfLuminous: 100,
+        shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
       }),
-      material: new Material({color: {r: 1, g: 1, b: 0.5}, selfLuminous: 100}),
       position: vec3.fromValues(0, 1, 0)
     })
   ]
   let scene = new Scene(meshes, []);
+  await scene.genTexcoordsForMainTexture()
+
   let camera = new Camera();
   camera.position = vec3.fromValues(0, 0, 10);
   camera.target = vec3.fromValues(0, 0, 0);
