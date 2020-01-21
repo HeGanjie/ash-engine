@@ -163,7 +163,6 @@ export class Material {
   normalMapTexcoords = null;
 
   shaderImpl = null;
-  programInfo = null;
 
   constructor(opts) {
     Object.assign(this, opts)
@@ -178,14 +177,6 @@ export class Material {
     this.specularMap = this.specularMap || defaultSpecularMap
     this.normalMap = this.normalMap || defaultNormalMap
     this.shaderImpl = this.shaderImpl || SHADER_IMPLEMENT_STRATEGY.diffuseMap
-  }
-
-  initProgramInfo(gl, opts) {
-    if (this.programInfo) {
-      return
-    }
-    let [vert, frag] = buildShader(this.shaderImpl, opts)
-    this.programInfo = createProgramInfo(gl, [vert, frag])
   }
 }
 

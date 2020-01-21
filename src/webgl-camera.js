@@ -1,4 +1,4 @@
-import {mat4, quat, vec3} from "gl-matrix";
+import {mat4, quat, vec3} from 'gl-matrix'
 import {
   createBufferInfoFromArrays,
   createProgramInfo,
@@ -6,10 +6,11 @@ import {
   resizeCanvasToDisplaySize,
   setUniforms
 } from './webgl-utils'
-import {flatMap, sumBy, take, isNil, isEmpty} from 'lodash'
-import {DistantLight} from "./distant-light";
-import ShadowMapRenderer from "./shadow-map-renderer";
-import {PointLight} from "./point-light";
+import {flatMap, isEmpty, isNil, sumBy, take} from 'lodash'
+import {DistantLight} from './distant-light'
+import ShadowMapRenderer from './shadow-map-renderer'
+import {PointLight} from './point-light'
+import {buildShader} from './shader-impl'
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -23,11 +24,21 @@ export class Camera {
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
   shadowMapRenderer = null;
+  programDict = null
 
   constructor(nearClippingPlaneDistance = 0.1, farClippingPlaneDistance = 1000) {
     this.nearClippingPlaneDistance = nearClippingPlaneDistance;
     this.farClippingPlaneDistance = farClippingPlaneDistance;
+    this.programDict = {}
     this.shadowMapRenderer = new ShadowMapRenderer()
+  }
+
+  initProgramInfo(gl, shaderImpl, opts) {
+    if (this.programDict[shaderImpl]) {
+      return
+    }
+    let [vert, frag] = buildShader(shaderImpl, opts)
+    this.programDict[shaderImpl] = createProgramInfo(gl, [vert, frag])
   }
 
   initShader(scene, gl) {
@@ -40,7 +51,13 @@ export class Camera {
       NUM_LIGHTS: scene.lights.length,
       NUM_SHADOW_MAPS: numDistantLightCount + numPointLightCount * 6
     }
-    scene.meshes.forEach(m => m.material?.initProgramInfo(gl, preInjectConstant))
+
+    scene.meshes.forEach(m => {
+      if (!m.material?.shaderImpl) {
+        return
+      }
+      this.initProgramInfo(gl, m.material.shaderImpl, preInjectConstant)
+    })
 
     const srcImg = scene.mainTexture
     let mainWebglTexture = gl.createTexture()
@@ -105,7 +122,7 @@ export class Camera {
       const bufferInfo = createBufferInfoFromArrays(gl, arrays)
       return {
         bufferInfo: bufferInfo,
-        vaos: createVAOFromBufferInfo(gl, mesh.material.programInfo, bufferInfo)
+        vaos: createVAOFromBufferInfo(gl, this.programDict[mesh.material.shaderImpl], bufferInfo)
       }
     });
 
@@ -118,6 +135,7 @@ export class Camera {
 
   render(scene, gl, fov = PI / 2) {
     this.shadowMapRenderer.renderShadowMap(scene, gl);
+    // return
     let {
       numShadowMapTextureCount,
       texture2dArr
@@ -171,12 +189,17 @@ export class Camera {
       ...uniformOfLights
     };
 
+    let currProg = null;
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position, scale} = mesh;
-      let {albedo, kD, kS, specularExp, programInfo} = mesh.material;
-      gl.useProgram(programInfo.program);
-      setUniforms(programInfo.uniformSetters, commonUniforms);
+      let {albedo, kD, kS, specularExp, shaderImpl} = mesh.material;
+      let programInfo = this.programDict[shaderImpl];
+      if (currProg !== programInfo) {
+        gl.useProgram(programInfo.program);
+        setUniforms(programInfo.uniformSetters, commonUniforms);
+      }
+      currProg = programInfo;
 
       let qRot = quat.fromEuler(quat.create(), ...rotation)
       let mRo = mat4.fromQuat(mat4.create(), qRot);
@@ -218,6 +241,7 @@ export class Camera {
 
       let bufferInfo = bufferInfoAndVaos[i].bufferInfo;
       gl.bindVertexArray(bufferInfoAndVaos[i].vaos);
+      // setBuffersAndAttributes(gl, programInfo.attribSetters, bufferInfo);
 
       gl.drawElements(gl.TRIANGLES, bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
     }

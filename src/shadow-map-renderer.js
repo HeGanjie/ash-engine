@@ -1,4 +1,10 @@
-import {createBufferInfoFromArrays, createProgramInfo, createVAOFromBufferInfo, setUniforms} from './webgl-utils'
+import {
+  createBufferInfoFromArrays,
+  createProgramInfo,
+  createVAOFromBufferInfo,
+  setBuffersAndAttributes,
+  setUniforms
+} from './webgl-utils'
 import {targetTextureHeight, targetTextureWidth} from './constants'
 import {mat4, quat} from 'gl-matrix'
 import {flatMap, sumBy, take} from 'lodash'
@@ -97,6 +103,7 @@ export default class ShadowMapRenderer {
     let {meshes, lights} = scene;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+    // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, targetTextureWidth, targetTextureHeight);
 
     // tell it we want to draw to all n attachments
@@ -127,9 +134,10 @@ export default class ShadowMapRenderer {
         }
       });
 
-      // let bufferInfo = shadowMapBufferInfos[i];
-      // setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
-      gl.bindVertexArray(shadowMapVaos[i]);
+      // TODO fix can not use vao bug
+      let bufferInfo = shadowMapBufferInfos[i];
+      setBuffersAndAttributes(gl, shadowMapProgramInfo.attribSetters, bufferInfo);
+      // gl.bindVertexArray(shadowMapVaos[i]);
 
       for (let j = 0; j < numShadowMapTextureCount; j++) {
         let uniforms = {
