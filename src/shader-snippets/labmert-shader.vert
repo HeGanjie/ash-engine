@@ -17,15 +17,21 @@ in vec2 a_normal_texcoord;
 uniform mat4 u_mat4_pp_w2c_transform;
 uniform mat4 u_mat4_transform;
 uniform mat4 u_mat4_w2c_rot_inv_T;
+#if NUM_DISTANT_LIGHT != 0
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
+#endif
+#if NUM_POINT_LIGHT != 0
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
+#endif
 
 out mat3 v_TBN;
 out vec2 v_diffuse_texcoord;
 out vec2 v_specular_texcoord;
 out vec2 v_normal_texcoord;
 out vec3 v_fragWorldPos;
+#if NUM_POINT_LIGHT + NUM_DISTANT_LIGHT != 0
 out vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS];
+#endif
 
 void main() {
     gl_Position = u_mat4_pp_w2c_transform * a_position;
@@ -40,9 +46,13 @@ void main() {
     vec3 B = cross(N, T);
     v_TBN = mat3(T, B, N);
 
+    #if NUM_DISTANT_LIGHT != 0
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         v_shadowMapPosArr[i] = u_distantLights[i].op_w2l_transform * a_position;
     }
+    #endif
+
+    #if NUM_POINT_LIGHT != 0
     for (int i = NUM_DISTANT_LIGHT; i < NUM_LIGHTS; i++) {
         int pointLightIdx = i - NUM_DISTANT_LIGHT,
             shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
@@ -54,4 +64,5 @@ void main() {
         v_shadowMapPosArr[shadowMapIdx + 4] = proj_w2l_transform[4] * a_position;
         v_shadowMapPosArr[shadowMapIdx + 5] = proj_w2l_transform[5] * a_position;
     }
+    #endif
 }

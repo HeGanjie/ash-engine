@@ -60,12 +60,12 @@ async function genScene() {
   let pointLight1 = new PointLight(
     mat4.fromTranslation(mat4.create(), [-2, 2, 0]),
     { r: 0.6, g: 0.6, b: 1 },
-    500
+    1000
   );
   let pointLight2 = new PointLight(
     mat4.fromTranslation(mat4.create(), [2, 2, 0]),
     { r: 1, g: 0.6, b: 0.6 },
-    500
+    1000
   );
   let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1, pointLight2]);
   await scene.genTexcoordsForMainTexture()

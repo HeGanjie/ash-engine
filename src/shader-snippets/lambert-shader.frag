@@ -11,8 +11,12 @@ precision mediump sampler2DArray;
 // float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
 #pragma glslify: phong = require(glsl-specular-phong)
 
+#if NUM_DISTANT_LIGHT != 0
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
+#endif
+#if NUM_POINT_LIGHT != 0
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
+#endif
 uniform float u_albedoDivPI;
 uniform float u_kd;
 uniform float u_ks;
@@ -27,7 +31,9 @@ in vec2 v_diffuse_texcoord;
 in vec2 v_specular_texcoord;
 in vec2 v_normal_texcoord;
 in vec3 v_fragWorldPos;
+#if NUM_POINT_LIGHT + NUM_DISTANT_LIGHT != 0
 in vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS]; // xy -> uv, z -> depth
+#endif
 
 out vec4 glFragColor;
 
@@ -53,6 +59,7 @@ void main() {
     vec3 normal = normalize(v_TBN * normalMapPointColor); // TODO move to vertex shader
     vec3 viewDir = normalize(v_fragWorldPos - u_cameraPos);
 
+    #if NUM_DISTANT_LIGHT != 0
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
         DistantLight u_distantLight = u_distantLights[i];
         vec4 v_shadowMapPos = v_shadowMapPosArr[i];
@@ -78,7 +85,9 @@ void main() {
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
+    #endif
 
+    #if NUM_POINT_LIGHT != 0
     for (int i = NUM_DISTANT_LIGHT; i < NUM_LIGHTS; i++) {
         int pointLightIdx = i - NUM_DISTANT_LIGHT, shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
 
@@ -113,4 +122,5 @@ void main() {
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
+    #endif
 }
