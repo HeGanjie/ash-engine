@@ -11,6 +11,9 @@ precision mediump sampler2DArray;
 // float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
 #pragma glslify: phong = require(glsl-specular-phong)
 
+#pragma glslify: toLinear = require('glsl-gamma/in')
+#pragma glslify: toGamma  = require('glsl-gamma/out')
+
 #if NUM_DISTANT_LIGHT != 0
 uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 #endif
@@ -49,7 +52,7 @@ int lookupCubeFace(vec3 v) {
 }
 
 void main() {
-    vec3 pointColor = texture(u_mainTexture, v_diffuse_texcoord).rgb;
+    vec3 pointColor = toLinear(texture(u_mainTexture, v_diffuse_texcoord).rgb);
     float pointSpecularColor = texture(u_mainTexture, v_specular_texcoord).r;
     vec3 normalMapPointColor = normalize(texture(u_mainTexture, v_normal_texcoord).rgb * 2.0 - 1.0);
 
@@ -123,4 +126,6 @@ void main() {
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
     #endif
+
+    glFragColor.rgb = toGamma(glFragColor.rgb);
 }
