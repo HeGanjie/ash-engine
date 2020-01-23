@@ -24,7 +24,6 @@ async function genScene() {
       diffuseMap: boxImg,
       specularMap: boxSpecularImg,
       kS: 0.15,
-      kD: 1 - 0.15,
       specularExp: 250,
       shaderImpl: SHADER_IMPLEMENT_STRATEGY.lambert
     })
@@ -38,7 +37,6 @@ async function genScene() {
       diffuseMap: wallImg,
       normalMap: wallNormalImg,
       kS: 0.04,
-      kD: 1 - 0.04,
       specularExp: 2,
       shaderImpl: SHADER_IMPLEMENT_STRATEGY.lambert
     })

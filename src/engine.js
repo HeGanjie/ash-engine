@@ -153,7 +153,6 @@ export class Material {
   specularMap = null
   normalMap = null // null then always face normal
   albedo = 0.18;
-  kD = 0.98; // phong model diffuse weight
   kS = 0.02; // phong model specular weight
   specularExp = 1;   // phong specular exponent
   selfLuminous = 0;

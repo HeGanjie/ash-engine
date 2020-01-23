@@ -25,7 +25,7 @@ export const diffuseMapShaderImpl = {
 
       in vec2 v_diffuse_texcoord;
       uniform sampler2D u_mainTexture;
-      uniform float u_kd;
+      uniform float u_ks;
       
       out vec4 glFragColor;
 
@@ -34,7 +34,7 @@ export const diffuseMapShaderImpl = {
           //  glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
 
           vec3 pointColor = texture(u_mainTexture, v_diffuse_texcoord).rgb;
-          glFragColor.rgb += pointColor * u_kd;
+          glFragColor.rgb += pointColor * (1.0 - u_ks);
       }
   `
 

@@ -21,7 +21,6 @@ uniform DistantLight u_distantLights[NUM_DISTANT_LIGHT];
 uniform PointLight u_pointLights[NUM_POINT_LIGHT];
 #endif
 uniform float u_albedoDivPI;
-uniform float u_kd;
 uniform float u_ks;
 uniform float u_specularExp;
 uniform vec3 u_cameraPos;
@@ -86,7 +85,7 @@ void main() {
             * pointSpecularColor
             * phong(u_distantLight.reverseLightDirection, viewDir, normal, u_specularExp);
 
-        glFragColor.rgb += u_kd * diffuse + u_ks * specular;
+        glFragColor.rgb += (1.0 - u_ks) * diffuse + u_ks * specular;
     }
     #endif
 
@@ -123,7 +122,7 @@ void main() {
             * phong(normalize(-lightDir), viewDir, normal, u_specularExp)
             * attenuation;
 
-        glFragColor.rgb += u_kd * diffuse + u_ks * specular;
+        glFragColor.rgb += (1.0 - u_ks) * diffuse + u_ks * specular;
     }
     #endif
 

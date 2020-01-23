@@ -194,7 +194,7 @@ export class Camera {
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
       let {rotation, position, scale} = mesh;
-      let {albedo, kD, kS, specularExp, shaderImpl} = mesh.material;
+      let {albedo, kS, specularExp, shaderImpl} = mesh.material;
       let programInfo = this.programDict[shaderImpl];
       if (currProg !== programInfo) {
         gl.useProgram(programInfo.program);
@@ -212,7 +212,6 @@ export class Camera {
 
       let uniforms = Object.assign({
           u_albedoDivPI: albedo / Math.PI,
-          u_kd: kD,
           u_ks: kS,
           u_specularExp: specularExp,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
