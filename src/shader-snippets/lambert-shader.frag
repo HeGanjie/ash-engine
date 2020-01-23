@@ -7,7 +7,10 @@ precision mediump sampler2DArray;
 
 #pragma glslify: DistantLight = require(./src/shader-snippets/distant-light.glsl)
 #pragma glslify: PointLight = require(./src/shader-snippets/point-light.glsl)
-#pragma glslify: diffuseSurfacePower = require(./src/shader-snippets/diffuse-surface-power.glsl)
+// https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/diffuse-lambertian-shading
+// lambert: max(0.0, dot(lightDirection, surfaceNormal));
+#pragma glslify: lambert = require(glsl-diffuse-lambert)
+
 // float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
 #pragma glslify: phong = require(glsl-specular-blinn-phong)
 
@@ -75,17 +78,16 @@ void main() {
         float depthOfFrag = projPos.z * 0.5 + 0.5;
         float illuminated = step(depthOfFrag, minDepth + 0.015); // depthOfFrag <= minDepth + 0.01 ? 1 : 0
 
-        vec3 diffuse = illuminated
-            * diffuseSurfacePower(u_albedoDivPI, u_distantLight.intensity, u_distantLight.reverseLightDirection, normal)
-            * pointColor
-            * u_distantLight.color;
+        vec3 diffuse = u_albedoDivPI * pointColor;
 
-        float specular = illuminated
-            * u_distantLight.intensity
-            * pointSpecularColor
+        float specular = pointSpecularColor
             * phong(u_distantLight.reverseLightDirection, viewDir, normal, u_specularExp);
 
-        glFragColor.rgb += (1.0 - u_ks) * diffuse + u_ks * specular;
+        glFragColor.rgb += illuminated
+            * u_distantLight.intensity
+            * u_distantLight.color
+            * lambert(u_distantLight.reverseLightDirection, normal)
+            * ((1.0 - u_ks) * diffuse + u_ks * specular);
     }
     #endif
 
@@ -110,19 +112,15 @@ void main() {
 
         float distance = length(lightDir);
         float attenuation = 1.0 / (4.0 * M_PI * distance * distance);
-        vec3 diffuse = illuminated
-            * diffuseSurfacePower(u_albedoDivPI, u_pointLight.intensity, normalize(-lightDir), normal)
-            * pointColor
-            * u_pointLight.color
-            * attenuation;
+        vec3 diffuse = u_albedoDivPI * pointColor * attenuation;
 
-        float specular = illuminated
+        float specular = pointSpecularColor * phong(normalize(-lightDir), viewDir, normal, u_specularExp) * attenuation;
+
+        glFragColor.rgb += illuminated
             * u_pointLight.intensity
-            * pointSpecularColor
-            * phong(normalize(-lightDir), viewDir, normal, u_specularExp)
-            * attenuation;
-
-        glFragColor.rgb += (1.0 - u_ks) * diffuse + u_ks * specular;
+            * u_pointLight.color
+            * lambert(normalize(-lightDir), normal)
+            * ((1.0 - u_ks) * diffuse + u_ks * specular);
     }
     #endif
 
