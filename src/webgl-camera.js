@@ -189,6 +189,7 @@ export class Camera {
       ...uniformOfLights
     };
 
+    // TODO merge draw calls by Uniform Buffer Objects ?
     let currProg = null;
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];

@@ -9,7 +9,7 @@ precision mediump sampler2DArray;
 #pragma glslify: PointLight = require(./src/shader-snippets/point-light.glsl)
 #pragma glslify: diffuseSurfacePower = require(./src/shader-snippets/diffuse-surface-power.glsl)
 // float phong(vec3 lightDir, vec3 eyeDir, vec3 normal, float shininess)
-#pragma glslify: phong = require(glsl-specular-phong)
+#pragma glslify: phong = require(glsl-specular-blinn-phong)
 
 #pragma glslify: toLinear = require('glsl-gamma/in')
 #pragma glslify: toGamma  = require('glsl-gamma/out')
@@ -60,7 +60,7 @@ void main() {
 //  glFragColor = vec4(0.1, 0.1, 0.1, 1); // ambient
 
     vec3 normal = normalize(v_TBN * normalMapPointColor); // TODO move to vertex shader
-    vec3 viewDir = normalize(v_fragWorldPos - u_cameraPos);
+    vec3 viewDir = normalize(u_cameraPos - v_fragWorldPos);
 
     #if NUM_DISTANT_LIGHT != 0
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
@@ -84,7 +84,7 @@ void main() {
         float specular = illuminated
             * u_distantLight.intensity
             * pointSpecularColor
-            * phong(u_distantLight.direction, viewDir, normal, u_specularExp);
+            * phong(u_distantLight.reverseLightDirection, viewDir, normal, u_specularExp);
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
     }
@@ -120,7 +120,7 @@ void main() {
         float specular = illuminated
             * u_pointLight.intensity
             * pointSpecularColor
-            * phong(normalize(lightDir), viewDir, normal, u_specularExp)
+            * phong(normalize(-lightDir), viewDir, normal, u_specularExp)
             * attenuation;
 
         glFragColor.rgb += u_kd * diffuse + u_ks * specular;
