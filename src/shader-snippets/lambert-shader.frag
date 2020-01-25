@@ -124,5 +124,7 @@ void main() {
     }
     #endif
 
-    glFragColor.rgb = toGamma(glFragColor.rgb);
+    // prevent color bigger than 1
+    vec3 ldr = 1.0 - exp(-glFragColor.rgb * 1.0);
+    glFragColor.rgb = toGamma(ldr);
 }
