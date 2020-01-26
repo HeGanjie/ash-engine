@@ -186,6 +186,7 @@ export class Camera {
     let commonUniforms = {
       u_texShadowMapArr: texture2dArr,
       u_cameraPos: this.position,
+      u_mainTexture: mainTexture,
       ...uniformOfLights
     };
 
@@ -216,8 +217,7 @@ export class Camera {
           u_specularExp: specularExp,
           u_mat4_pp_w2c_transform: pp_w2c_transform,
           u_mat4_transform: mTransform,
-          u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot)),
-          u_mainTexture: mainTexture
+          u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot))
         },
         scene.lights
           .filter(l => l instanceof DistantLight)

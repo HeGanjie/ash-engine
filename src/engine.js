@@ -64,11 +64,15 @@ export class Geometry {
 
   transform(rotate, move = vec3.fromValues(0, 0, 0), scale = vec3.fromValues(1, 1, 1)) {
     let qRot = quat.fromEuler(quat.create(), ...rotate)
-    let mRo = mat4.fromQuat(mat4.create(), qRot);
     let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, move, scale);
+    let mTransformForNormal = mat4.create()
+    mat4.transpose(mTransformForNormal, mat4.invert(mTransformForNormal, mTransform))
     return new Geometry({
       vertices: this.vertices.map(pos => vec3.transformMat4(vec3.create(), pos, mTransform)),
-      normals: this.normals.map(dir => vec3.transformMat4(vec3.create(), dir, mRo)),
+      normals: this.normals.map(dir => {
+        const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
+        return vec3.normalize(n0, n0)
+      }),
       faces: _.cloneDeep(this.faces)
     })
   }
