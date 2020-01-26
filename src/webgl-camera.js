@@ -169,15 +169,14 @@ export class Camera {
           acc[`u_distantLights[${idx}].direction`] = direction;
           acc[`u_distantLights[${idx}].color`] = vec3.fromValues(color.r, color.g, color.b);
           acc[`u_distantLights[${idx}].intensity`] = intensity;
-          // acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4_proj_w2l; // bind later
-          acc[`u_distantLights[${idx}].reverseLightDirection`] = vec3.scale(vec3.create(), direction, -1);
+          acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4_proj_w2l;
         } else if (currLight instanceof PointLight) {
           let {position, color, intensity, mat4_proj_w2l_arr} = currLight;
           let pointLightIdx = idx - numDistantLightCount;
           acc[`u_pointLights[${pointLightIdx}].position`] = position;
           acc[`u_pointLights[${pointLightIdx}].color`] = vec3.fromValues(color.r, color.g, color.b);
           acc[`u_pointLights[${pointLightIdx}].intensity`] = intensity;
-          // acc[`u_pointLights[${pointLightIdx}].proj_w2l_transform`] = mat4_proj_w2l; // bind later
+          acc[`u_pointLights[${pointLightIdx}].proj_w2l_transform`] = flatMap(mat4_proj_w2l_arr, ppW2l => [...ppW2l]);
         } else {
           throw new Error('Unknown light')
         }
@@ -187,6 +186,7 @@ export class Camera {
       u_texShadowMapArr: texture2dArr,
       u_cameraPos: this.position,
       u_mainTexture: mainTexture,
+      u_mat4_pp_w2c: pp_w2c,
       ...uniformOfLights
     };
 
@@ -207,35 +207,15 @@ export class Camera {
       let mRo = mat4.fromQuat(mat4.create(), qRot);
       let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale);
 
-      let pp_w2c_transform = mat4.multiply(mat4.create(), pp_w2c, mTransform);
-
       let m4_w2c_rot = mat4.multiply(mat4.create(), w2c, mRo);
 
       let uniforms = Object.assign({
           u_albedoDivPI: albedo / Math.PI,
           u_ks: kS,
           u_specularExp: specularExp,
-          u_mat4_pp_w2c_transform: pp_w2c_transform,
           u_mat4_transform: mTransform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot))
-        },
-        scene.lights
-          .filter(l => l instanceof DistantLight)
-          .reduce((acc, curr, idx) => {
-            acc[`u_distantLights[${idx}].op_w2l_transform`] = mat4.multiply(mat4.create(), curr.mat4_proj_w2l, mTransform);
-            return acc
-          }, {}),
-        scene.lights
-          .filter(l => l instanceof PointLight)
-          .reduce((acc, curr, idx) => {
-            let {mat4_proj_w2l_arr} = curr;
-            let mergedData = flatMap(mat4_proj_w2l_arr, ppW2l => {
-              let m = mat4.multiply(mat4.create(), ppW2l, mTransform);
-              return [...m]
-            });
-            acc[`u_pointLights[${idx}].proj_w2l_transform`] = mergedData;
-            return acc
-          }, {})
+        }
       );
       setUniforms(programInfo.uniformSetters, uniforms);
 

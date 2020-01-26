@@ -14,7 +14,7 @@ in vec2 a_diffuse_texcoord;
 in vec2 a_specular_texcoord;
 in vec2 a_normal_texcoord;
 
-uniform mat4 u_mat4_pp_w2c_transform;
+uniform mat4 u_mat4_pp_w2c;
 uniform mat4 u_mat4_transform;
 uniform mat4 u_mat4_w2c_rot_inv_T;
 #if NUM_DISTANT_LIGHT != 0
@@ -34,8 +34,9 @@ out vec4 v_shadowMapPosArr[NUM_SHADOW_MAPS];
 #endif
 
 void main() {
-    gl_Position = u_mat4_pp_w2c_transform * a_position;
-    v_fragWorldPos = (u_mat4_transform * a_position).xyz;
+    vec4 pTransformed = u_mat4_transform * a_position;
+    gl_Position = u_mat4_pp_w2c * pTransformed;
+    v_fragWorldPos = pTransformed.xyz;
     v_diffuse_texcoord = a_diffuse_texcoord;
     v_specular_texcoord = a_specular_texcoord;
     v_normal_texcoord = a_normal_texcoord;
@@ -48,7 +49,7 @@ void main() {
 
     #if NUM_DISTANT_LIGHT != 0
     for (int i = 0; i < NUM_DISTANT_LIGHT; i++) {
-        v_shadowMapPosArr[i] = u_distantLights[i].op_w2l_transform * a_position;
+        v_shadowMapPosArr[i] = u_distantLights[i].op_w2l_transform * pTransformed;
     }
     #endif
 
@@ -57,12 +58,12 @@ void main() {
         int pointLightIdx = i - NUM_DISTANT_LIGHT,
             shadowMapIdx = NUM_DISTANT_LIGHT + pointLightIdx * 6;
         mat4[] proj_w2l_transform = u_pointLights[pointLightIdx].proj_w2l_transform;
-        v_shadowMapPosArr[shadowMapIdx    ] = proj_w2l_transform[0] * a_position;
-        v_shadowMapPosArr[shadowMapIdx + 1] = proj_w2l_transform[1] * a_position;
-        v_shadowMapPosArr[shadowMapIdx + 2] = proj_w2l_transform[2] * a_position;
-        v_shadowMapPosArr[shadowMapIdx + 3] = proj_w2l_transform[3] * a_position;
-        v_shadowMapPosArr[shadowMapIdx + 4] = proj_w2l_transform[4] * a_position;
-        v_shadowMapPosArr[shadowMapIdx + 5] = proj_w2l_transform[5] * a_position;
+        v_shadowMapPosArr[shadowMapIdx    ] = proj_w2l_transform[0] * pTransformed;
+        v_shadowMapPosArr[shadowMapIdx + 1] = proj_w2l_transform[1] * pTransformed;
+        v_shadowMapPosArr[shadowMapIdx + 2] = proj_w2l_transform[2] * pTransformed;
+        v_shadowMapPosArr[shadowMapIdx + 3] = proj_w2l_transform[3] * pTransformed;
+        v_shadowMapPosArr[shadowMapIdx + 4] = proj_w2l_transform[4] * pTransformed;
+        v_shadowMapPosArr[shadowMapIdx + 5] = proj_w2l_transform[5] * pTransformed;
     }
     #endif
 }

@@ -81,12 +81,12 @@ void main() {
         vec3 diffuse = u_albedoDivPI * pointColor;
 
         float specular = pointSpecularColor
-            * phong(u_distantLight.reverseLightDirection, viewDir, normal, u_specularExp);
+            * phong(-u_distantLight.direction, viewDir, normal, u_specularExp);
 
         glFragColor.rgb += illuminated
             * u_distantLight.intensity
             * u_distantLight.color
-            * lambert(u_distantLight.reverseLightDirection, normal)
+            * lambert(-u_distantLight.direction, normal)
             * ((1.0 - u_ks) * diffuse + u_ks * specular);
     }
     #endif
