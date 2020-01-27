@@ -1,5 +1,5 @@
 import Stats from 'stats.js'
-import genScene from './scene1'
+import genScene from './scene3'
 
 var stats = new Stats()
 stats.showPanel(0) // 0: fps, 1: ms, 2: mb, 3+: custom

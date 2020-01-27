@@ -29,6 +29,7 @@
     "glsl-diffuse-lambert": "^1.0.0",
     "glsl-gamma": "^2.0.0",
     "glsl-specular-blinn-phong": "^1.0.2",
+    "glsl-specular-cook-torrance": "^2.0.1",
     "lodash": "^4.17.15",
     "parcel-bundler": "^1.12.4",
     "parcel-plugin-glslify": "^0.1.0",

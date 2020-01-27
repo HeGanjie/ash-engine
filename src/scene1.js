@@ -10,7 +10,7 @@ import {Camera} from './webgl-camera'
 import {loadImage} from './utils'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
-async function genScene() {
+export default async function genScene() {
   let wallImg = await loadImage(wallImgUrl)
   let wallNormalImg = await loadImage(wallNormalImgUrl)
   let boxImg = await loadImage(boxImgUrl)
@@ -86,5 +86,3 @@ async function genScene() {
     }
   }
 }
-
-export default genScene

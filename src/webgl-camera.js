@@ -10,7 +10,8 @@ import {flatMap, isEmpty, isNil, sumBy, take} from 'lodash'
 import {DistantLight} from './distant-light'
 import ShadowMapRenderer from './shadow-map-renderer'
 import {PointLight} from './point-light'
-import {buildShader} from './shader-impl'
+import {buildShader, genUniforms} from './shader-impl'
+import {faceVerticesPropNameDict} from './constants'
 
 let {PI, tan, floor, ceil, min, max} = Math;
 
@@ -76,32 +77,32 @@ export class Camera {
     }
 
     let bufferInfoAndVaos = scene.meshes.map(mesh => {
+      let {material} = mesh
       let {faces, normals, vertices} = mesh.geometry;
-      let {diffuseMapTexcoords, specularMapTexcoords, normalMapTexcoords} = mesh.material
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
+      let texCoordArrays = Object.keys(faceVerticesPropNameDict).reduce((acc, texCoordsPropName) => {
+        if (!(texCoordsPropName in material)) {
+          return acc
+        }
+        let arrayPropName = texCoordsPropName.replace('MapTexcoords', '_texcoord')
+        let texCoordIdxPropName = faceVerticesPropNameDict[texCoordsPropName]
+        acc[arrayPropName] = {
+          numComponents: 2,
+          data: flatMap(faces, f => flatMap(f.data, d => {
+            let texCoordIdx = d[texCoordIdxPropName]
+            return isNil(texCoordIdx) || isEmpty(material[texCoordsPropName])
+              ? [0, 0]
+              : [...material[texCoordsPropName][texCoordIdx]]
+          }))
+        }
+        return acc
+      }, {})
       let arrays = {
         position: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
         },
-        diffuse_texcoord: {
-          numComponents: 2,
-          data: flatMap(faces, f => flatMap(f.data, ({T}) => {
-            return isNil(T) || isEmpty(diffuseMapTexcoords) ? [0, 0] : [...diffuseMapTexcoords[T]]
-          }))
-        },
-        specular_texcoord: {
-          numComponents: 2,
-          data: flatMap(faces, f => flatMap(f.data, ({TS}) => {
-            return isNil(TS) || isEmpty(specularMapTexcoords) ? [0, 0] : [...specularMapTexcoords[TS]]
-          }))
-        },
-        normal_texcoord: {
-          numComponents: 2,
-          data: flatMap(faces, f => flatMap(f.data, ({TN}) => {
-            return isNil(TN) || isEmpty(normalMapTexcoords) ? [0, 0] : [...normalMapTexcoords[TN]]
-          }))
-        },
+        ...texCoordArrays,
         normal: {
           numComponents: 3,
           data: flatMap(faces, f => flatMap(f.data, ({N}) => [...normals[N]])),
@@ -162,7 +163,7 @@ export class Camera {
     let ppMatrix = mat4.perspective(mat4.create(), fov, gl.canvas.width / gl.canvas.height, 1, 20);
     let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
 
-    const uniformOfLights = scene.lights
+    const commonUniforms = scene.lights
       .reduce((acc, currLight, idx) => {
         if (currLight instanceof DistantLight) {
           let {direction, color, intensity, mat4_proj_w2l} = currLight;
@@ -181,22 +182,19 @@ export class Camera {
           throw new Error('Unknown light')
         }
         return acc
-      }, {});
-    let commonUniforms = {
-      u_texShadowMapArr: texture2dArr,
-      u_cameraPos: this.position,
-      u_mainTexture: mainTexture,
-      u_mat4_pp_w2c: pp_w2c,
-      ...uniformOfLights
-    };
+      }, {
+        u_texShadowMapArr: texture2dArr,
+        u_cameraPos: this.position,
+        u_mainTexture: mainTexture,
+        u_mat4_pp_w2c: pp_w2c,
+      });
 
     // TODO merge draw calls by Uniform Buffer Objects ?
     let currProg = null;
     for (let i = 0; i < scene.meshes.length; i++) {
       let mesh = scene.meshes[i];
-      let {rotation, position, scale} = mesh;
-      let {albedo, kS, specularExp, shaderImpl} = mesh.material;
-      let programInfo = this.programDict[shaderImpl];
+      let {rotation, position, scale, material} = mesh;
+      let programInfo = this.programDict[material.shaderImpl];
       if (currProg !== programInfo) {
         gl.useProgram(programInfo.program);
         setUniforms(programInfo.uniformSetters, commonUniforms);
@@ -210,9 +208,7 @@ export class Camera {
       let m4_w2c_rot = mat4.multiply(mat4.create(), w2c, mRo);
 
       let uniforms = Object.assign({
-          u_albedoDivPI: albedo / Math.PI,
-          u_ks: kS,
-          u_specularExp: specularExp,
+          ...genUniforms(material),
           u_mat4_transform: mTransform,
           u_mat4_w2c_rot_inv_T: mat4.transpose(m4_w2c_rot, mat4.invert(m4_w2c_rot, m4_w2c_rot))
         }

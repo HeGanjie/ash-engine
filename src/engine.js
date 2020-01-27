@@ -2,8 +2,8 @@ import {mat4, quat, vec2, vec3} from 'gl-matrix'
 import _ from 'lodash'
 import earcut from 'earcut'
 import {DistantLight} from './distant-light'
-import {buildShader, SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
-import {createProgramInfo} from './webgl-utils'
+import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
+import {faceVerticesPropNameDict} from './constants'
 
 window.earcut = earcut
 window.vec3 = vec3
@@ -142,10 +142,15 @@ tempCanvas.width = 2;
 tempCanvas.height = 2;
 const tempCanvasCtx = tempCanvas.getContext("2d");
 
+tempCanvasCtx.fillStyle = `rgba(0, 0, 0, 1)`;
+tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+export const fillBlackMap = new Image()
+fillBlackMap.src = tempCanvas.toDataURL("image/png")
+
 tempCanvasCtx.fillStyle = `rgba(255, 255, 255, 1)`;
 tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-const defaultSpecularMap = new Image()
-defaultSpecularMap.src = tempCanvas.toDataURL("image/png")
+export const fillWhiteMap = new Image()
+fillWhiteMap.src = tempCanvas.toDataURL("image/png")
 
 tempCanvasCtx.fillStyle = `rgba(50%, 50%, 100%, 1)`;
 tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -177,11 +182,45 @@ export class Material {
       this.diffuseMap = new Image()
       this.diffuseMap.src = tempCanvas.toDataURL("image/png")
     }
-    this.specularMap = this.specularMap || defaultSpecularMap
+    this.specularMap = this.specularMap || fillBlackMap
     this.normalMap = this.normalMap || defaultNormalMap
     this.shaderImpl = this.shaderImpl || SHADER_IMPLEMENT_STRATEGY.diffuseMap
   }
 }
+
+export class PbrMaterial {
+  albedoMap = null
+  normalMap = null // null then always face normal
+  metallicMap = null
+  roughnessMap = null
+  ambientOcclusionMap = null
+
+  albedoMapTexcoords = null; // auto gen
+  normalMapTexcoords = null;
+  metallicMapTexcoords = null
+  roughnessMapTexcoords = null
+  ambientOcclusionMapTexcoords = null
+
+  shaderImpl = null;
+
+  constructor(opts) {
+    Object.assign(this, opts)
+    // if no diffuseMap but color, convert color to img
+    if (!this.albedoMap && opts.color) {
+      let {r, g, b, a} = opts.color
+      tempCanvasCtx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
+      tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      this.albedoMap = new Image()
+      this.albedoMap.src = tempCanvas.toDataURL("image/png")
+    }
+    this.normalMap = this.normalMap || defaultNormalMap
+    this.metallicMap = this.metallicMap || fillBlackMap
+    this.roughnessMap = this.roughnessMap || fillBlackMap
+    this.ambientOcclusionMap = this.ambientOcclusionMap || fillWhiteMap
+    this.shaderImpl = this.shaderImpl || SHADER_IMPLEMENT_STRATEGY.pbr
+  }
+}
+
 
 export class Mesh {
   position = vec3.create();
@@ -232,8 +271,11 @@ export class Scene {
     // TODO 考虑立方体每个面独立材质的情况
     // TODO 螺旋排布算法/俄罗斯方块简化排布算法
     let allSubTextures = _.flatMap(this.meshes, m => {
-      let {diffuseMap, specularMap, normalMap} = m.material
-      return [diffuseMap, specularMap, normalMap].filter(_.identity)
+      return Object.keys(faceVerticesPropNameDict)
+        .map(texCoordPropName => {
+          return (texCoordPropName in m.material) ? m.material[(texCoordPropName.replace('Texcoords', ''))] : null
+        })
+        .filter(_.identity)
     })
     for (let img of allSubTextures) {
       if (img.width === 0) {
@@ -334,23 +376,18 @@ export class Scene {
     this.meshes.forEach(m => {
       let {material, geometry} = m
       // TODO 如果是导入的模型则可以跳过生成坐标的逻辑，直接生成切线向量
-      if (!(material.diffuseMap instanceof Image)) {
-        throw new Error('Unexpected diffuseMap data')
-      }
-      m.material.diffuseMapTexcoords = m.material.diffuseMapTexcoords || []
-      generateTexcoords(material.diffuseMap, geometry, m.material.diffuseMapTexcoords, 'T')
 
-      if (!(material.specularMap instanceof Image)) {
-        throw new Error('Unexpected specularMap data')
-      }
-      m.material.specularMapTexcoords = m.material.specularMapTexcoords || []
-      generateTexcoords(material.specularMap, geometry, m.material.specularMapTexcoords, 'TS')
-
-      if (!(material.normalMap instanceof Image)) {
-        throw new Error('Unexpected normalMap data')
-      }
-      m.material.normalMapTexcoords = m.material.normalMapTexcoords || []
-      generateTexcoords(material.normalMap, geometry, m.material.normalMapTexcoords, 'TN')
+      Object.keys(faceVerticesPropNameDict).forEach(texCoordsPropName => {
+        if (!(texCoordsPropName in material)) {
+          return
+        }
+        let mapPropName = texCoordsPropName.replace('Texcoords', '')
+        if (!(material[mapPropName] instanceof Image)) {
+          throw new Error(`Unexpected ${mapPropName} data`)
+        }
+        material[texCoordsPropName] = material[texCoordsPropName] || []
+        generateTexcoords(material[mapPropName], geometry, material[texCoordsPropName], faceVerticesPropNameDict[texCoordsPropName])
+      })
 
       // 根据 UV 生成切线向量，暂定每个面的切线向量都是唯一的
       let {faces, vertices} = geometry
@@ -358,9 +395,9 @@ export class Scene {
         let v0 = vertices[f.data[0].V]
         let v1 = vertices[f.data[1].V]
         let v2 = vertices[f.data[2].V]
-        let uv0 = m.material.normalMapTexcoords[f.data[0].TN]
-        let uv1 = m.material.normalMapTexcoords[f.data[1].TN]
-        let uv2 = m.material.normalMapTexcoords[f.data[2].TN]
+        let uv0 = material.normalMapTexcoords[f.data[0].TN]
+        let uv1 = material.normalMapTexcoords[f.data[1].TN]
+        let uv2 = material.normalMapTexcoords[f.data[2].TN]
 
         let edge1 = vec3.subtract(vec3.create(), v1, v0)
         let edge2 = vec3.subtract(vec3.create(), v2, v0)

@@ -3,7 +3,7 @@ import {vec3} from 'gl-matrix'
 import {Camera} from './webgl-camera'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
-async function genScene() {
+export default async function genScene() {
   let meshes = [
     new Mesh({
       name: 'Ground',
@@ -45,5 +45,3 @@ async function genScene() {
     }
   }
 }
-
-export default genScene
