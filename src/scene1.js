@@ -18,7 +18,7 @@ export default async function genScene() {
 
   let cubeMesh = new Mesh({
     name: "Cube",
-    geometry: Geometry.BoxGeometry,
+    geometry: Geometry.CubeGeometry,
     material: new Material({
       // color: { r: 1, g: 1, b: 1 },
       diffuseMap: boxImg,
@@ -31,7 +31,9 @@ export default async function genScene() {
 
   let planeMesh = new Mesh({
     name: "Ground",
-    geometry: Geometry.PlaneGeometry,
+    geometry: Geometry.QuadGeometry.transform(vec3.fromValues(-90, 0, 0)),
+    position: vec3.fromValues(0, -2, 0),
+    scale: vec3.fromValues(10, 1, 10),
     material: new Material({
       // color: { r: 0.5, g: 0.5, b: 0.5 },
       diffuseMap: wallImg,
@@ -41,8 +43,6 @@ export default async function genScene() {
       shaderImpl: SHADER_IMPLEMENT_STRATEGY.lambert
     })
   });
-  planeMesh.position = vec3.fromValues(0, -2, 0);
-  planeMesh.scale = vec3.fromValues(10, 1, 10);
 
   let distantLight = new DistantLight(
     mat4.fromXRotation(mat4.create(), (-90* Math.PI) / 180),
@@ -81,6 +81,7 @@ export default async function genScene() {
       camera.render(scene, ctx);
       cubeMesh.rotation[0] += 0.01 * radToAngle;
       cubeMesh.rotation[1] += 0.01 * radToAngle;
+
       // vec3.transformMat4(distantLight.direction, distantLight.direction, rotDistanceLight);
       // vec3.normalize(distantLight.direction, distantLight.direction)
     }

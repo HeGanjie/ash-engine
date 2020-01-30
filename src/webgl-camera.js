@@ -6,7 +6,7 @@ import {
   resizeCanvasToDisplaySize,
   setUniforms
 } from './webgl-utils'
-import {flatMap, isEmpty, isNil, sumBy, take} from 'lodash'
+import {flatMap} from 'lodash'
 import {DistantLight} from './distant-light'
 import ShadowMapRenderer from './shadow-map-renderer'
 import {PointLight} from './point-light'
@@ -39,6 +39,7 @@ export class Camera {
       return
     }
     let [vert, frag] = buildShader(shaderImpl, opts)
+    // Could not pack varying: 可能是 varying 太多
     this.programDict[shaderImpl] = createProgramInfo(gl, [vert, frag])
   }
 
@@ -78,44 +79,38 @@ export class Camera {
 
     let bufferInfoAndVaos = scene.meshes.map(mesh => {
       let {material} = mesh
-      let {faces, normals, vertices} = mesh.geometry;
+      let {faces, normals, vertices, tangents} = mesh.geometry;
       // 三角形坐标，不变化的话可以不重新写入数据到缓冲
       let texCoordArrays = Object.keys(faceVerticesPropNameDict).reduce((acc, texCoordsPropName) => {
         if (!(texCoordsPropName in material)) {
           return acc
         }
         let arrayPropName = texCoordsPropName.replace('MapTexcoords', '_texcoord')
-        let texCoordIdxPropName = faceVerticesPropNameDict[texCoordsPropName]
         acc[arrayPropName] = {
           numComponents: 2,
-          data: flatMap(faces, f => flatMap(f.data, d => {
-            let texCoordIdx = d[texCoordIdxPropName]
-            return isNil(texCoordIdx) || isEmpty(material[texCoordsPropName])
-              ? [0, 0]
-              : [...material[texCoordsPropName][texCoordIdx]]
-          }))
+          data: flatMap(material[texCoordsPropName], uv => [...uv])
         }
         return acc
       }, {})
+      // move some logic to geometry
       let arrays = {
         position: {
           numComponents: 3,
-          data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
+          data: flatMap(vertices, vg => [...vg])
         },
         ...texCoordArrays,
         normal: {
           numComponents: 3,
-          data: flatMap(faces, f => flatMap(f.data, ({N}) => [...normals[N]])),
+          data: flatMap(normals, ng => [...ng]),
         },
         tangent: {
           numComponents: 3,
-          data: flatMap(faces, f => flatMap(f.data, () => [...f.tangent])),
+          data: flatMap(tangents, tg => [...tg]),
         },
         indices:  {
           numComponents: 3,
           data: flatMap(faces, (f, fIdx) => {
-            let offset = sumBy(take(faces, fIdx), f => f.data.length); // TODO optimize by reduce
-            return f.triangleIndices.map(ti => ti + offset)
+            return f.triangleIndices
           })
         },
       };

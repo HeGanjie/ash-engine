@@ -7,7 +7,7 @@ export default async function genScene() {
   let meshes = [
     new Mesh({
       name: 'Ground',
-      geometry: Geometry.PlaneGeometry.transform(vec3.fromValues(90, 0, 0)),
+      geometry: Geometry.QuadGeometry,
       material: new Material({
         color: {r: 0.5, g: 0.5, b: 0.5},
         shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
@@ -16,7 +16,7 @@ export default async function genScene() {
     }),
     new Mesh({
       name: 'triangle',
-      geometry: Geometry.TrianglePlaneGeometry.transform(vec3.fromValues(90, 0, 0)),
+      geometry: Geometry.TrianglePlaneGeometry,
       material: new Material({
         color: {r: 1, g: 1, b: 0.5},
         selfLuminous: 100,

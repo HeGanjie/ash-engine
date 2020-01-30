@@ -45,6 +45,14 @@ export class PointLight extends Light {
     vec3.transformMat4(this.position, this.position, l2w)
   }
 
+  static create(position, color, intensity) {
+    return new PointLight(
+      mat4.fromTranslation(mat4.create(), position),
+      color,
+      intensity
+    )
+  }
+
   getShadowLightDirection(out, pHit) {
     vec3.subtract(out, this.position, pHit);
     vec3.normalize(out, out);

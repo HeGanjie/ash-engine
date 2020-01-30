@@ -4,10 +4,14 @@ import earcut from 'earcut'
 import {DistantLight} from './distant-light'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 import {faceVerticesPropNameDict} from './constants'
+import sphere from 'primitive-sphere'
+import plane from 'primitive-plane'
+import cube from 'primitive-cube'
 
 window.earcut = earcut
 window.vec3 = vec3
 window.mat4 = mat4
+window._ = _
 
 
 export const defaultColor = { r: 1, g: 1, b: 1 };
@@ -52,14 +56,83 @@ async function mergeImgs(mainTextureWidth, mainTextureHeight, idealArrangement) 
   })
 }
 
+function fromStackGlPrimitive(obj) {
+  // cells: [[0, 1, 2], [2, 3, 0]]
+  // normals: [[0, 0, -1], [0, 0, -1], [0, 0, -1], [0, 0, -1]]
+  // positions: [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+  // uvs: [[0, 0], [1, 0], [1, 1], [0, 1]]
+  const {positions, cells, uvs, normals} = obj
+  return new Geometry({
+    vertices: positions.map(p => vec3.fromValues(...p)),
+    normals: normals.map(n => vec3.fromValues(...n)),
+    uvs: uvs.map(uv => vec2.fromValues(...uv)),
+    faces: cells.map(c => {
+      return {
+        data: c.map(vi => ({V: vi, N: vi, T: vi}))
+      }
+    })
+  })
+}
+
+function calcTangent(v0, v1, v2, uv0, uv1, uv2) {
+  let edge1 = vec3.subtract(vec3.create(), v1, v0)
+  let edge2 = vec3.subtract(vec3.create(), v2, v0)
+  let deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0)
+  let deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0)
+
+  let fa = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+  let tangent = vec3.fromValues(
+    fa * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
+    fa * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
+    fa * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+  )
+  return vec3.normalize(tangent, tangent)
+}
 
 export class Geometry {
   vertices = null
   normals = null
   faces = null
+  uvs = null
+  tangents = null // 自动根据法线和 uv 生成
 
   constructor(opts) {
     Object.assign(this, opts)
+    if (!this.tangents) {
+      this.calcTangents()
+    }
+  }
+
+  calcTangents() {
+    if (!this.normals || !this.uvs) {
+      throw new Error('Can not generate tangents without normals and uvs')
+    }
+    let vertexFaceIndexDict = _(this.faces)
+      .map((f, fi) => ({faceIndex: fi, indices: f.data.map(d => d.V)}))
+      .flatMap(info => info.indices.map(vi => ({faceIndex: info.faceIndex, vertexIndex: vi})))
+      .groupBy(info => info.vertexIndex)
+      .mapValues(infos => infos.map(inf => inf.faceIndex))
+      .value()
+    this.tangents = this.normals.map((n, vi) => {
+      // 找出全部临近面
+      let faces = vertexFaceIndexDict[vi].map(faceIdx => this.faces[faceIdx])
+      // 算出全部面的切线
+      let tangentsOfFaces = faces.map(f => {
+        if (f.tangent) {
+          return f.tangent
+        }
+        let [v0, v1, v2] = f.data.map(d => this.vertices[d.V])
+        let [uv0, uv1, uv2] = f.data.map(d => this.uvs[d.T])
+        f.tangent = calcTangent(v0, v1, v2, uv0, uv1, uv2)
+        return f.tangent
+      })
+      // 通过求平均算出点的切线 TODO 插值?
+
+      let meanTangent = tangentsOfFaces.reduce((acc, curr) => vec3.add(acc, acc, curr), vec3.create())
+
+      vec3.normalize(meanTangent, meanTangent)
+      return meanTangent
+    })
   }
 
   transform(rotate, move = vec3.fromValues(0, 0, 0), scale = vec3.fromValues(1, 1, 1)) {
@@ -73,89 +146,88 @@ export class Geometry {
         const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
         return vec3.normalize(n0, n0)
       }),
-      faces: _.cloneDeep(this.faces)
+      faces: _.cloneDeep(this.faces),
+      uvs: this.uvs,
+      tangents: this.tangents.map(dir => {
+        const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
+        return vec3.normalize(n0, n0)
+      })
     })
   }
 
+  static SphereGeometry = fromStackGlPrimitive(sphere(1, {segments: 16}))
+
   static TrianglePlaneGeometry = new Geometry({
     vertices: [
-      vec3.fromValues(-0.5, 0, 0),
-      vec3.fromValues(0, 0, -0.5),
       vec3.fromValues(0.5, 0, 0),
+      vec3.fromValues(0, 0.5, 0),
+      vec3.fromValues(-0.5, 0, 0),
     ],
     normals: [
+      vec3.fromValues(0, 1, 0),
+      vec3.fromValues(0, 1, 0),
       vec3.fromValues(0, 1, 0)
     ],
     faces: [
-      { data:  [{V: 0, N: 0}, {V: 1, N: 0}, {V: 2, N: 0}] }
+      { data:  [{V: 0, N: 0, T: 0}, {V: 1, N: 0, T: 1}, {V: 2, N: 0, T: 2}] }
+    ],
+    uvs: [
+      vec2.fromValues(1, 0),
+      vec2.fromValues(0.5, 1),
+      vec2.fromValues(0, 0)
     ]
   })
 
-  static PlaneGeometry = new Geometry({
-    vertices: [
-      vec3.fromValues(-0.5, 0, -0.5),
-      vec3.fromValues(0.5, 0, -0.5),
-      vec3.fromValues(-0.5, 0, 0.5),
-      vec3.fromValues(0.5, 0, 0.5)
-    ],
-    normals: [
-      vec3.fromValues(0, 1, 0)
-    ],
-    faces: [
-      { data:  [{V: 0, N: 0}, {V: 2, N: 0}, {V: 3, N: 0}, {V: 1, N: 0}] },
-    ]
-  })
+  static QuadGeometry = fromStackGlPrimitive(plane())
 
-  static BoxGeometry = new Geometry({
-    vertices: [
-      vec3.fromValues(-0.5, 0.5, 0.5), // 左上后
-      vec3.fromValues(0.5, 0.5, 0.5), // 右上后
-      vec3.fromValues(-0.5, -0.5, 0.5), // 左下后
-      vec3.fromValues(0.5, -0.5, 0.5), // 右下后
+  static CubeGeometry = fromStackGlPrimitive(cube())
 
-      vec3.fromValues(-0.5, 0.5, -0.5), // 左上前
-      vec3.fromValues(0.5, 0.5, -0.5), // 右上前
-      vec3.fromValues(-0.5, -0.5, -0.5), //左下前
-      vec3.fromValues(0.5, -0.5, -0.5) // 右下前
-    ],
-    normals: [
-      vec3.fromValues(0, 0, 1), // 后
-      vec3.fromValues(0, 0, -1), // 前
-      vec3.fromValues(1, 0, 0), // 右
-      vec3.fromValues(-1, 0, 0), // 左
-      vec3.fromValues(0, 1, 0), // 上
-      vec3.fromValues(0, -1, 0) // 下
-    ],
-    faces: [
-      { data:  [{V: 0, N: 0}, {V: 2, N: 0}, {V: 3, N: 0}, {V: 1, N: 0}] },
-      { data:  [{V: 4, N: 1}, {V: 5, N: 1}, {V: 7, N: 1}, {V: 6, N: 1}] },
-      { data:  [{V: 1, N: 2}, {V: 3, N: 2}, {V: 7, N: 2}, {V: 5, N: 2}] },
-      { data:  [{V: 0, N: 3}, {V: 4, N: 3}, {V: 6, N: 3}, {V: 2, N: 3}] },
-      { data:  [{V: 0, N: 4}, {V: 1, N: 4}, {V: 5, N: 4}, {V: 4, N: 4}] },
-      { data:  [{V: 2, N: 5}, {V: 6, N: 5}, {V: 7, N: 5}, {V: 3, N: 5}] }
-    ]
-  })
+  triangulation() {
+    let {faces, vertices, normals} = this
+    if (faces[0].triangleIndices) {
+      return
+    }
+    faces.forEach((f, fi) => {
+      // 如果只有三个点则无需转换
+      if (f.data.length === 3) {
+        f.triangleIndices = f.data.map(d => d.V)
+        // f.triangleIndicesForVertexes = f.triangleIndices.map(ti => f.data[ti].V)
+        return
+      }
+      // do triangulation after rotate face to x-y plane
+      let transformedVec3Arr = getXYPlantVerticesPosForFace(f, normals[f.data[0].N], vertices)
+      let vPos = _.flatMap(transformedVec3Arr, vArr => [...vArr]);
+      // [2, 3, 0, 0, 1, 2]
+      const currTriangleIndices = earcut(vPos, null, 3)
+      f.triangleIndices = currTriangleIndices.map(ti => f.data[ti].V);
+      if (_.isEmpty(f.triangleIndices)) {
+        throw new Error('triangulation error: ' + f)
+      }
+      // f.triangleIndicesForVertexes = currTriangleIndices.map(ti => f.data[ti].V)
+    })
+  }
+
 }
 
 const tempCanvas = document.createElement('canvas');
-tempCanvas.width = 2;
-tempCanvas.height = 2;
+tempCanvas.width = 32;
+tempCanvas.height = 32;
 const tempCanvasCtx = tempCanvas.getContext("2d");
 
-tempCanvasCtx.fillStyle = `rgba(0, 0, 0, 1)`;
-tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-export const fillBlackMap = new Image()
-fillBlackMap.src = tempCanvas.toDataURL("image/png")
+export function makeImage(color, width = 2, height = 2) {
+  tempCanvas.width = width;
+  tempCanvas.height = height;
+  let {r, g, b, a} = color
+  tempCanvasCtx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
+  tempCanvasCtx.fillRect(0, 0, width, height);
+  let resImg = new Image()
+  resImg.src = tempCanvas.toDataURL("image/png")
+  return resImg
+}
 
-tempCanvasCtx.fillStyle = `rgba(255, 255, 255, 1)`;
-tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-export const fillWhiteMap = new Image()
-fillWhiteMap.src = tempCanvas.toDataURL("image/png")
-
-tempCanvasCtx.fillStyle = `rgba(50%, 50%, 100%, 1)`;
-tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-const defaultNormalMap = new Image()
-defaultNormalMap.src = tempCanvas.toDataURL("image/png")
+export const fillBlackMap = makeImage({r: 0, g: 0, b: 0, a: 1})
+export const fillWhiteMap = makeImage({r: 1, g: 1, b: 1, a: 1})
+const defaultNormalMap = makeImage({r: 0.5, g: 0.5, b: 1, a: 1})
 
 export class Material {
   diffuseMap = null // Image or TODO Image[]
@@ -207,11 +279,7 @@ export class PbrMaterial {
     Object.assign(this, opts)
     // if no diffuseMap but color, convert color to img
     if (!this.albedoMap && opts.color) {
-      let {r, g, b, a} = opts.color
-      tempCanvasCtx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a || 1})`;
-      tempCanvasCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      this.albedoMap = new Image()
-      this.albedoMap.src = tempCanvas.toDataURL("image/png")
+      this.albedoMap = makeImage(opts.color)
     }
     this.normalMap = this.normalMap || defaultNormalMap
     this.metallicMap = this.metallicMap || fillBlackMap
@@ -233,23 +301,6 @@ export class Mesh {
   constructor(opts) {
     Object.assign(this, opts)
   }
-
-  triangulation() {
-    let {faces, vertices, normals} = this.geometry;
-
-    faces.forEach(f => {
-      // TODO 如果只有三个点则无需转换
-      // do triangulation after rotate face to x-y plane
-      let transformedVec3Arr = getXYPlantVerticesPosForFace(f, normals[f.data[0].N], vertices)
-      let vPos = _.flatMap(transformedVec3Arr, vArr => [...vArr]);
-      // [2, 3, 0, 0, 1, 2]
-      f.triangleIndices = earcut(vPos, null, 3);
-      if (_.isEmpty(f.triangleIndices)) {
-        throw new Error('triangulation error: ' + f)
-      }
-      f.triangleIndicesForVertexes = f.triangleIndices.map(ti => f.data[ti].V)
-    })
-  }
 }
 
 export class Scene {
@@ -260,7 +311,7 @@ export class Scene {
   constructor(meshes, lights) {
     this.meshes = meshes;
     this.lights = _.orderBy(lights, l => l instanceof DistantLight ? 0 : 1);
-    meshes.forEach(m => m.triangulation())
+    meshes.forEach(m => m.geometry.triangulation())
   }
 
   async genTexcoordsForMainTexture() {
@@ -270,13 +321,16 @@ export class Scene {
     // 3. 算出最佳合并材质宽度，按行堆叠排列
     // TODO 考虑立方体每个面独立材质的情况
     // TODO 螺旋排布算法/俄罗斯方块简化排布算法
-    let allSubTextures = _.flatMap(this.meshes, m => {
-      return Object.keys(faceVerticesPropNameDict)
-        .map(texCoordPropName => {
-          return (texCoordPropName in m.material) ? m.material[(texCoordPropName.replace('Texcoords', ''))] : null
-        })
-        .filter(_.identity)
-    })
+    let allSubTextures = _(this.meshes)
+      .flatMap(m => {
+        return Object.keys(faceVerticesPropNameDict)
+          .map(texCoordPropName => {
+            return (texCoordPropName in m.material) ? m.material[(texCoordPropName.replace('Texcoords', ''))] : null
+          })
+          .filter(_.identity)
+      })
+      .uniq()
+      .value()
     for (let img of allSubTextures) {
       if (img.width === 0) {
         await new Promise(resolve => img.onload = resolve)
@@ -329,56 +383,30 @@ export class Scene {
     }
 
     function generateTexcoords(img, w_geometry, w_texcoords, faceVerticesPropName) {
-      let {faces, vertices, normals} = w_geometry;
+      let {uvs} = w_geometry;
       // 取得材质位置，转换为 UV
       // 生成材质坐标
       let {x, y} = getPositionFromArrangement(img)
       let uv0 = [(x + 0.5) / mainTextureWidth, (y + 0.5) / mainTextureHeight]
       let uv1 = [(x + img.width - 0.5) / mainTextureWidth, (y + img.height - 0.5) / mainTextureHeight]
 
-      // 生成材质坐标
-      // 1. 将面旋转至 x-y 平面
-      // 2. 将顶点位置映射到 x：[u0, u1] y: [v0, v1] 里面
-      // 3. 设置 m.material.diffuseMapTexcoords 和 face.data[].T
+      let mToUV = mat4.fromRotationTranslationScale(
+        mat4.create(),
+        quat.create(),
+        vec3.fromValues(uv0[0], uv0[1], 0),
+        vec3.fromValues(uv1[0] - uv0[0], uv1[1] - uv0[1], 1))
 
-      // TODO 去重
-      faces.forEach(f => {
-        // 立方体顶部和底部的材质映射可能会出问题，因为不知道哪面向上
-        let transformedVec3Arr = getXYPlantVerticesPosForFace(f, normals[f.data[0].N], vertices) // vec3[]
-        let xArr = transformedVec3Arr.map(v3 => v3[0])
-        let yArr = transformedVec3Arr.map(v3 => v3[1])
-        let minX = _.min(xArr), minY = _.min(yArr), maxX = _.max(xArr), maxY = _.max(yArr)
-
-        // x: [0, 1], y: [0, 1]
-        let mNormalize = mat4.fromRotationTranslationScale(
-          mat4.create(),
-          quat.create(),
-          vec3.fromValues(-minX, -minY, 0),
-          vec3.fromValues(1/(maxX - minX), 1/(maxY - minY), 1))
-        // x：[u0, u1] y: [v0, v1]
-        let mToUV = mat4.fromRotationTranslationScale(
-          mat4.create(),
-          quat.create(),
-          vec3.fromValues(uv0[0], uv0[1], 0),
-          vec3.fromValues(uv1[0] - uv0[0], uv1[1] - uv0[1], 1))
-        let mTransform = mat4.mul(mat4.create(), mToUV, mNormalize)
-
-        let uvArr = transformedVec3Arr.map(v3 => vec3.transformMat4(vec3.create(), v3, mTransform))
-
-        f.data.forEach((vInf, vIdx) => {
-          vInf[faceVerticesPropName] = w_texcoords.length
-          const uv = uvArr[vIdx]
-          w_texcoords.push(vec2.fromValues(uv[0], uv[1]))
-        })
-      })
+      // raw uvs, [0, 1] -> [uv0, uv1]
+      let uvArr = uvs.map(v2 => vec2.transformMat4(vec2.create(), v2, mToUV))
+      w_texcoords.push(...uvArr)
     }
 
     this.meshes.forEach(m => {
       let {material, geometry} = m
-      // TODO 如果是导入的模型则可以跳过生成坐标的逻辑，直接生成切线向量
 
+      // 合并材质后，需要重新定位 UV
       Object.keys(faceVerticesPropNameDict).forEach(texCoordsPropName => {
-        if (!(texCoordsPropName in material)) {
+        if (!(texCoordsPropName in material) || !_.isEmpty(material[texCoordsPropName])) {
           return
         }
         let mapPropName = texCoordsPropName.replace('Texcoords', '')
@@ -391,26 +419,18 @@ export class Scene {
 
       // 根据 UV 生成切线向量，暂定每个面的切线向量都是唯一的
       let {faces, vertices} = geometry
+      if (faces[0].tangent) {
+        return
+      }
       faces.forEach(f => {
         let v0 = vertices[f.data[0].V]
         let v1 = vertices[f.data[1].V]
         let v2 = vertices[f.data[2].V]
-        let uv0 = material.normalMapTexcoords[f.data[0].TN]
-        let uv1 = material.normalMapTexcoords[f.data[1].TN]
-        let uv2 = material.normalMapTexcoords[f.data[2].TN]
+        let uv0 = material.normalMapTexcoords[f.data[0].T]
+        let uv1 = material.normalMapTexcoords[f.data[1].T]
+        let uv2 = material.normalMapTexcoords[f.data[2].T]
 
-        let edge1 = vec3.subtract(vec3.create(), v1, v0)
-        let edge2 = vec3.subtract(vec3.create(), v2, v0)
-        let deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0)
-        let deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0)
-
-        let fa = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
-        let tangent = vec3.fromValues(
-          fa * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
-          fa * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
-          fa * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
-        )
-        f.tangent = vec3.normalize(tangent, tangent)
+        f.tangent = calcTangent(v0, v1, v2, uv0, uv1, uv2)
       })
     })
   }

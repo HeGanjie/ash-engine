@@ -29,13 +29,12 @@ export default class ShadowMapRenderer {
       let arrays = {
         position: {
           numComponents: 3,
-          data: flatMap(faces, f => flatMap(f.data, ({V}) => [...vertices[V]]))
+          data: flatMap(vertices, vg => [...vg])
         },
         indices:  {
           numComponents: 3,
           data: flatMap(faces, (f, fIdx) => {
-            let offset = sumBy(take(faces, fIdx), f => f.data.length);
-            return f.triangleIndices.map(ti => ti + offset)
+            return f.triangleIndices
           })
         },
       };
