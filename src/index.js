@@ -1,28 +1,55 @@
 import Stats from 'stats.js'
-import genScene from './scene3'
+import gameShell from 'game-shell'
+import genScene from './scene1'
+import FirstPersonCameraCtrl from './first-person-camera-ctrl'
 
-var stats = new Stats()
-stats.showPanel(0) // 0: fps, 1: ms, 2: mb, 3+: custom
-document.body.appendChild(stats.dom)
 
-let canvas = document.getElementById('canvas')
-let ctx = canvas.getContext('webgl2')
+let shell = gameShell({pointerLock: true})
+let stats, sceneCtrl, ctx, cameraCtrl
 
-if (!ctx) {
-  throw new Error('Not support webgl2')
-}
+shell.bind("move-left", "left", "A")
+shell.bind("move-right", "right", "D")
+shell.bind("move-up", "up", "W")
+shell.bind("move-down", "down", "S")
 
-genScene().then(({onFrame}) => {
+shell.on("init", async () => {
+  stats = new Stats()
+  stats.showPanel(0) // 0: fps, 1: ms, 2: mb, 3+: custom
+  document.body.appendChild(stats.dom)
 
-  function drawingLoop() {
-    stats.begin()
-    onFrame(ctx)
+  let canvas = document.getElementById('canvas')
+  ctx = canvas.getContext('webgl2')
 
-    stats.end()
-    requestAnimationFrame(drawingLoop)
+  if (!ctx) {
+    throw new Error('Not support webgl2')
   }
+  sceneCtrl = await genScene()
 
-  requestAnimationFrame(drawingLoop)
-  // setInterval(drawingLoop, 5000);
+  cameraCtrl = new FirstPersonCameraCtrl({
+    position: sceneCtrl.camera.position,
+    target: sceneCtrl.camera.target
+  })
 })
 
+shell.on("render", (frame_time) => {
+  if (!sceneCtrl || !ctx) {
+    return
+  }
+  stats.begin()
+  sceneCtrl.onFrame(ctx)
+  stats.end()
+})
+
+shell.on("tick", function() {
+  if (!sceneCtrl || !ctx) {
+    return
+  }
+  cameraCtrl.control(this.tickTime, [
+    this.down('W'), this.down('S'),
+    this.down('A'), this.down('D'),
+    this.down('space'), this.down('shift'),
+  ], [this.mouseX, this.mouseY], [this.prevMouseX, this.prevMouseY])
+
+  sceneCtrl.camera.position = cameraCtrl.position
+  sceneCtrl.camera.target = cameraCtrl.target
+})

@@ -11,6 +11,7 @@ import cube from 'primitive-cube'
 window.earcut = earcut
 window.vec3 = vec3
 window.mat4 = mat4
+window.quat = quat
 window._ = _
 
 
