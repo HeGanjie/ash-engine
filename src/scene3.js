@@ -17,7 +17,7 @@ export default async function genScene() {
     [wallAlbedoImgUrl, wallNormalImgUrl, wallMetallicImgUrl, wallRoughnessImgUrl, wallAOImgUrl], loadImage)
 
   let grayMaps = _.range(5).map(idx => {
-    let v = idx * 2.5 / 10
+    let v = Math.max(0.05, idx * 2.5 / 10)
     return makeImage({r: v, g: v, b: v, a: 1})
   })
 
@@ -62,7 +62,7 @@ export default async function genScene() {
     vec3.fromValues(-10, -10, 10),
     // vec3.fromValues(10, -10, 10)
   ]
-  let pointLights = pointLightPositions.map(pPos => PointLight.create(pPos, {r: 1, g: 1, b: 1}, 10000))
+  let pointLights = pointLightPositions.map(pPos => PointLight.create(pPos, {r: 1, g: 1, b: 1}, 8000))
 
   let scene = new Scene([planeMesh, ...spheres], pointLights);
   await scene.genTexcoordsForMainTexture()
