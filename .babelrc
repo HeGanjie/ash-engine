@@ -6,8 +6,9 @@
         "targets": {
           "edge": "17",
           "firefox": "60",
-          "chrome": "67",
-          "safari": "11.1"
+          "chrome": "78",
+          "safari": "11.1",
+          "ios_saf": "12.4.5"
         },
         "useBuiltIns": "usage"
       }
@@ -15,8 +16,6 @@
   ],
   "plugins": [
     ["@babel/plugin-proposal-decorators", { "legacy": true }],
-    ["@babel/plugin-proposal-class-properties", { "loose": true }],
-    "@babel/plugin-proposal-optional-chaining",
-    "@babel/plugin-proposal-nullish-coalescing-operator"
+    ["@babel/plugin-proposal-class-properties", { "loose": true }]
   ]
 }
