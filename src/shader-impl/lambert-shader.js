@@ -1,4 +1,4 @@
-import lambertVert from '../shader-snippets/labmert-shader.vert'
+import lambertVert from '../shader-snippets/lambert-shader.vert'
 import lambertFrag from '../shader-snippets/lambert-shader.frag'
 
 export const lambertShaderImpl = {
