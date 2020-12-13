@@ -6,9 +6,9 @@
         "targets": {
           "edge": "17",
           "firefox": "60",
-          "chrome": "78",
+          "chrome": "80",
           "safari": "11.1",
-          "ios_saf": "12.4.5"
+          "ios": "12.4.5"
         },
         "useBuiltIns": "usage"
       }
