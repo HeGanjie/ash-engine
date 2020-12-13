@@ -4,8 +4,9 @@
   "description": "3d game engine dev learning project",
   "license": "ISC",
   "author": "heganjie",
-  "main": "index.js",
+  "main": "index.html",
   "scripts": {
+    "start": "parcel index.html --open",
     "dev": "parcel -p 8080 watch index.html",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
