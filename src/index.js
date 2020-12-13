@@ -1,6 +1,6 @@
 import Stats from 'stats.js'
 import gameShell from 'game-shell'
-import genScene from './scene1'
+import genScene from './scene3'
 import FirstPersonCameraCtrl from './first-person-camera-ctrl'
 
 
