@@ -7,6 +7,10 @@
 2. `npm install`
 3. `npm start`
 
+### Preview
+1. [Rotating box](https://heganjie.github.io/ash-engine/dist?scene=0)
+2. [Pbr material](https://heganjie.github.io/ash-engine/dist?scene=2)
+
 ### RoadMap
  - [x] Lambert + Blinn-Phong material
  - [x] Shadow map
