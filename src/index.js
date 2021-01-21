@@ -1,6 +1,8 @@
 import Stats from 'stats.js'
 import gameShell from 'game-shell'
-import genScene from './scene3'
+import genScene1 from './scene1'
+import genScene2 from './scene2'
+import genScene3 from './scene3'
 import FirstPersonCameraCtrl from './first-person-camera-ctrl'
 
 
@@ -23,7 +25,9 @@ shell.on("init", async () => {
   if (!ctx) {
     throw new Error('Not support webgl2')
   }
-  sceneCtrl = await genScene()
+  let watchScene = (window.location.search || '').match(/scene=(\d+)/)?.[1] || 2
+  let sceneGenFn = [genScene1, genScene2, genScene3][watchScene]
+  sceneCtrl = await sceneGenFn()
 
   cameraCtrl = new FirstPersonCameraCtrl({
     position: sceneCtrl.camera.position,
