@@ -123,8 +123,12 @@ export class Geometry {
           return f.tangent
         }
         let [v0, v1, v2] = f.data.map(d => this.vertices[d.V])
-        let [uv0, uv1, uv2] = f.data.map(d => this.uvs[d.T])
-        f.tangent = calcTangent(v0, v1, v2, uv0, uv1, uv2)
+        const uvs = f.data.map(d => this.uvs[d.T]);
+        let [uv0, uv1, uv2] = uvs
+
+        f.tangent = _.every(uvs, uv => uv[0] === 0 && uv[1] === 0)
+          ? vec3.fromValues(0, 0, 0)
+          : calcTangent(v0, v1, v2, uv0, uv1, uv2)
         return f.tangent
       })
       // 通过求平均算出点的切线 TODO 插值?
@@ -152,6 +156,55 @@ export class Geometry {
       tangents: this.tangents.map(dir => {
         const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
         return vec3.normalize(n0, n0)
+      })
+    })
+  }
+
+  static parseObj(objFileContent) {
+    const lines = objFileContent.split(/\s*\r?\n/);
+    let positions = _.filter(lines, line => line[0] === 'v')
+      .map(line => {
+        let m = line.match(/^v\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*$/)
+        if (!m) {
+          throw new Error(`malformed input: ${line}`)
+        }
+        return [+m[1], +m[2], +m[3]]
+      })
+    let cells = _.filter(lines, line => line[0] === 'f')
+      .map(line => {
+        let m = line.match(/^f\s+(\d+)\s+(\d+)\s+(\d+)\s*$/)
+        if (!m) {
+          throw new Error(`malformed input: ${line}`)
+        }
+        return [m[1] - 1, m[2] - 1, m[3] - 1]
+      })
+    // TODO 如果没有给定点法线，则根据面信息设置法线
+    let pointNormals = []
+    let uvs = []
+    let faceNormals = cells.map(cell => {
+      let [v0, v1, v2] = cell.map(vi => positions[vi])
+      let v01 = vec3.subtract(vec3.create(), v1, v0)
+      let v12 = vec3.subtract(vec3.create(), v2, v1)
+      let normal = vec3.cross(vec3.create(), v01, v12)
+      vec3.normalize(normal, normal)
+      return normal
+    })
+
+    // 按照这个规范来生成几何体
+    // cells: [[0, 1, 2], [2, 3, 0]]
+    // normals: [[0, 0, -1], [0, 0, -1], [0, 0, -1], [0, 0, -1]]
+    // positions: [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    // uvs: [[0, 0], [1, 0], [1, 1], [0, 1]]
+    return new Geometry({
+      vertices: positions.map(p => vec3.fromValues(...p)),
+      normals: _.isEmpty(pointNormals)
+        ? positions.map((p, i) => faceNormals[_.findIndex(cells, cell => _.includes(cell, i))])
+        : _.map(pointNormals, n => vec3.fromValues(...n)),
+      uvs: _.isEmpty(uvs) ? positions.map(() => vec2.fromValues(0, 0)) : _.map(uvs, uv => vec2.fromValues(...uv)),
+      faces: cells.map((c, ci) => {
+        return {
+          data: c.map(vi => ({V: vi, N: vi, T: vi}))
+        }
       })
     })
   }

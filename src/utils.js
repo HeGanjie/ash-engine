@@ -15,3 +15,8 @@ export async function loadImage(assetsUrl) {
   })
   return image
 }
+
+export async function loadText(assetsUrl) {
+  let resp = await fetch(assetsUrl)
+  return await resp.text()
+}

@@ -3,7 +3,7 @@ import {
   createBufferInfoFromArrays,
   createProgramInfo,
   createVAOFromBufferInfo,
-  resizeCanvasToDisplaySize,
+  resizeCanvasToDisplaySize, setBuffersAndAttributes,
   setUniforms
 } from './webgl-utils'
 import {flatMap} from 'lodash'
@@ -24,6 +24,7 @@ export class Camera {
   target = vec3.create();
   nearClippingPlaneDistance = 0.1;
   farClippingPlaneDistance = 1000;
+  fov = Math.PI / 2;
   shadowMapRenderer = null;
   programDict = null
 
@@ -129,7 +130,7 @@ export class Camera {
     };
   }
 
-  render(scene, gl, fov = PI / 2) {
+  render(scene, gl) {
     this.shadowMapRenderer.renderShadowMap(scene, gl);
     // return
     let {
@@ -155,7 +156,7 @@ export class Camera {
     gl.enable(gl.DEPTH_TEST);
 
     let w2c = mat4.lookAt(mat4.create(), this.position, this.target, vec3.fromValues(0, 1, 0));
-    let ppMatrix = mat4.perspective(mat4.create(), fov, gl.canvas.width / gl.canvas.height, 1, 20);
+    let ppMatrix = mat4.perspective(mat4.create(), this.fov, gl.canvas.width / gl.canvas.height, this.nearClippingPlaneDistance, this.farClippingPlaneDistance);
     let pp_w2c = mat4.multiply(mat4.create(), ppMatrix, w2c);
 
     const commonUniforms = scene.lights
