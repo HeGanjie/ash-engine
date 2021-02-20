@@ -77,10 +77,10 @@ export default async function genScene() {
     { r: 1, g: 1, b: 1 },
     10
   );
-  let scene = new Scene(meshes, [distantLight]);
+  let scene = new Scene(meshes, [/*distantLight*/]);
   await scene.genTexcoordsForMainTexture()
 
-  let camera = new Camera(0.1, 1400);
+  let camera = new RayTracingCamera();
   camera.position = vec3.fromValues(278, 273, -800);
   camera.target = vec3.fromValues(278, 273, 0);
   camera.fov = 40 * Math.PI / 180

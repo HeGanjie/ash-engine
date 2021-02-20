@@ -2,19 +2,22 @@ import {lambertShaderImpl} from './lambert-shader'
 import {diffuseMapShaderImpl} from './diffuse-map-shader'
 import {shadowMapShaderImpl} from './shadow-map-shader'
 import {pbrShaderImpl} from './pbr-shader'
+import {rayTracingShaderImpl} from "./ray-tracing";
 
 export const SHADER_IMPLEMENT_STRATEGY = {
   diffuseMap: 'diffuseMap',
   pbr: 'pbr',
   lambert: 'lambert',
-  shadowMap: 'shadowMap'
+  shadowMap: 'shadowMap',
+  rayTracing: 'rayTracing'
 }
 
 const SHADER_IMPLEMENT_DICT = {
   diffuseMap: diffuseMapShaderImpl,
   pbr: pbrShaderImpl,
   lambert: lambertShaderImpl,
-  shadowMap: shadowMapShaderImpl
+  shadowMap: shadowMapShaderImpl,
+  rayTracing: rayTracingShaderImpl
 }
 
 export function buildShader(key, consts = {}) {
