@@ -1,4 +1,4 @@
-import {vec3} from "gl-matrix";
+import {vec3, mat4, vec2} from "gl-matrix";
 import {buildShader, SHADER_IMPLEMENT_STRATEGY} from "./shader-impl";
 import {
   createBufferInfoFromArrays,
@@ -12,6 +12,7 @@ import {flatten, flatMap} from "lodash";
 export class RayTracingCamera {
   position = vec3.create();
   target = vec3.create();
+  up = vec3.fromValues(0, 1, 0)
   fov = Math.PI / 2;
   programInfo = null
   bufferInfo = null
@@ -26,13 +27,13 @@ export class RayTracingCamera {
   }
 
   initBuffer(scene, gl) {
+    // 裁剪空间的坐标范围永远是 -1 到 1，https://webglfundamentals.org/webgl/lessons/zh_cn/webgl-fundamentals.html
+
     let vertices = [
       [-1, -1],
       [1, -1],
       [1, 1],
-      [1, 1],
       [-1, 1],
-      [-1, -1]
     ]
     let arrays = {
       position: {
@@ -43,7 +44,7 @@ export class RayTracingCamera {
         numComponents: 3,
         data: [
           0, 1, 2,
-          3, 4, 5
+          2, 3, 0
         ]
       },
     };
@@ -69,8 +70,12 @@ export class RayTracingCamera {
     }
     gl.useProgram(this.programInfo.program);
 
-    this.uniformDict.u_resolution = [gl.canvas.width, gl.canvas.height]
-    setUniforms(this.programInfo.uniformSetters, this.uniformDict);
+    const uniformDict = this.uniformDict;
+    uniformDict.u_resolution = vec2.set(uniformDict.u_resolution || vec2.create(), gl.canvas.width, gl.canvas.height)
+    uniformDict.u_eye_pos = this.position
+    uniformDict.u_fov = this.fov
+    uniformDict.u_cam_to_world = mat4.targetTo(uniformDict.u_cam_to_world || mat4.create(), this.position, this.target, this.up)
+    setUniforms(this.programInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.programInfo.attribSetters, this.bufferInfo);
     gl.drawElements(gl.TRIANGLES, this.bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
   }
