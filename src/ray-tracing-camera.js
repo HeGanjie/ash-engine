@@ -1,4 +1,4 @@
-import {vec3, mat4, vec2} from "gl-matrix";
+import {vec3, mat4, vec2, quat} from "gl-matrix";
 import {buildShader, SHADER_IMPLEMENT_STRATEGY} from "./shader-impl";
 import {
   createBufferInfoFromArrays,
@@ -22,7 +22,11 @@ export class RayTracingCamera {
   }
 
   initShader(scene, gl) {
-    let [vert, frag] = buildShader(SHADER_IMPLEMENT_STRATEGY.rayTracing, {})
+    let [vert, frag] = buildShader(SHADER_IMPLEMENT_STRATEGY.rayTracing, {
+      NUM_VERTICES_COUNT: scene.meshes.reduce((acc, m) => acc + m.geometry.vertices.length, 0),
+      NUM_FACES_COUNT: scene.meshes.reduce((acc, m) => acc + m.geometry.faces.length, 0),
+      NUM_MESHES_COUNT: scene.meshes.length
+    })
     this.programInfo = createProgramInfo(gl, [vert, frag])
   }
 
@@ -75,6 +79,21 @@ export class RayTracingCamera {
     uniformDict.u_eye_pos = this.position
     uniformDict.u_fov = this.fov
     uniformDict.u_cam_to_world = mat4.targetTo(uniformDict.u_cam_to_world || mat4.create(), this.position, this.target, this.up)
+    // TODO optimize gc
+    uniformDict.u_vertices = uniformDict.u_vertices || flatMap(scene.meshes, m => flatMap(m.geometry.vertices, v => [...v]))
+    let verticesOffset = 0
+    uniformDict.u_indices = uniformDict.u_indices || flatMap(scene.meshes, m => {
+      let result = flatMap(m.geometry.faces, f => f.data.map(d => d.V + verticesOffset));
+      verticesOffset += m.geometry.vertices.length
+      return result
+    })
+    uniformDict.u_face_material_ids = uniformDict.u_face_material_ids || flatMap(scene.meshes, m => m.geometry.faces.map(() => m.material.id))
+    uniformDict.u_local_to_world_matrixs = uniformDict.u_local_to_world_matrixs || flatMap(scene.meshes, m => {
+      let {rotation, position, scale} = m;
+      let qRot = quat.fromEuler(quat.create(), ...rotation)
+      return [...mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale)]
+    })
+
     setUniforms(this.programInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.programInfo.attribSetters, this.bufferInfo);
     gl.drawElements(gl.TRIANGLES, this.bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);

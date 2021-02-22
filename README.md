@@ -10,6 +10,7 @@
 ### Preview
 1. [Rotating box](https://heganjie.github.io/ash-engine/dist?scene=0)
 2. [Pbr material](https://heganjie.github.io/ash-engine/dist?scene=2)
+2. [Ray tracing(WIP)](https://heganjie.github.io/ash-engine/dist?scene=3)
 
 ### RoadMap
  - [x] Lambert + Blinn-Phong material

@@ -366,6 +366,15 @@ export class Scene {
     this.meshes = meshes;
     this.lights = _.orderBy(lights, l => l instanceof DistantLight ? 0 : 1);
     meshes.forEach(m => m.geometry.triangulation())
+    // init material id，假设 material 会共用
+    let existedMaterials = []
+    meshes.forEach(mesh => {
+      if (!mesh.material || !_.isNil(mesh.material.id)) {
+        return
+      }
+      mesh.material.id = existedMaterials.length
+      existedMaterials.push(mesh.material)
+    })
   }
 
   async genTexcoordsForMainTexture() {
