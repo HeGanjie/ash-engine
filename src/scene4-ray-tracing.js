@@ -34,8 +34,8 @@ export default async function genScene() {
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   })
   const light = new Material({
-    color: {r: 47.8348, g: 38.5664, b: 31.0808}, // from games101 assignment7
-    selfLuminous: 1,
+    color: {r: 0.65, g: 0.65, b: 0.65}, // from games101 assignment7
+    selfLuminous: vec3.fromValues(47.8348, 38.5664, 31.0808),
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });

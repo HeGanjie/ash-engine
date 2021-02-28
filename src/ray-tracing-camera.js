@@ -7,7 +7,7 @@ import {
   setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
-import {flatten, flatMap} from "lodash";
+import {flatten, flatMap, uniqBy, sum} from "lodash";
 
 export class RayTracingCamera {
   position = vec3.create();
@@ -25,7 +25,10 @@ export class RayTracingCamera {
     let [vert, frag] = buildShader(SHADER_IMPLEMENT_STRATEGY.rayTracing, {
       NUM_VERTICES_COUNT: scene.meshes.reduce((acc, m) => acc + m.geometry.vertices.length, 0),
       NUM_FACES_COUNT: scene.meshes.reduce((acc, m) => acc + m.geometry.faces.length, 0),
-      NUM_MESHES_COUNT: scene.meshes.length
+      NUM_MESHES_COUNT: scene.meshes.length,
+      NUM_LIGHT_FACE_COUNT: scene.meshes.filter(m => m.material.selfLuminous[0] > 0)
+        .reduce((acc, m) => acc + m.geometry.faces.length, 0),
+      NUM_MATERIALS_COUNT: uniqBy(scene.meshes.map(m => m.material), m => m.id).length
     })
     this.programInfo = createProgramInfo(gl, [vert, frag])
   }
@@ -87,12 +90,35 @@ export class RayTracingCamera {
       verticesOffset += m.geometry.vertices.length
       return result
     })
-    uniformDict.u_face_material_ids = uniformDict.u_face_material_ids || flatMap(scene.meshes, m => m.geometry.faces.map(() => m.material.id))
+    uniformDict.u_face_normals = uniformDict.u_face_normals || flatMap(scene.meshes, m => {
+      return flatMap(m.geometry.faces, f => [...f.normal])
+    })
+    uniformDict.u_face_material_ids = uniformDict.u_face_material_ids || flatMap(scene.meshes, m => {
+      return m.geometry.faces.map(() => m.material.id);
+    })
     uniformDict.u_local_to_world_matrixs = uniformDict.u_local_to_world_matrixs || flatMap(scene.meshes, m => {
       let {rotation, position, scale} = m;
       let qRot = quat.fromEuler(quat.create(), ...rotation)
       return [...mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale)]
     })
+    uniformDict.u_material_colors = uniformDict.u_material_colors || flatMap(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => {
+      let {r, g, b} = m.color
+      return [r, g, b]
+    })
+    uniformDict.u_material_emits = uniformDict.u_material_emits || flatMap(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => {
+      return [...m.selfLuminous]
+    })
+    let faceOffset = 0
+    uniformDict.u_lightFaceIdx = uniformDict.u_lightFaceIdx || flatMap(scene.meshes, m => {
+      let res = m.material.selfLuminous[0] <= 0 ? [] : m.geometry.faces.map((f, fi) => faceOffset + fi)
+      faceOffset += m.geometry.faces.length
+      return res
+    })
+    uniformDict.u_areaOfLightFace = uniformDict.u_areaOfLightFace || flatMap(scene.meshes, m => {
+      return m.material.selfLuminous[0] <= 0 ? [] : m.geometry.faces.map(f => f.area)
+    })
+    uniformDict.u_areaOfLightSum = uniformDict.u_areaOfLightSum || sum(uniformDict.u_areaOfLightFace)
+    uniformDict.u_ran = vec2.set(uniformDict.u_ran || vec2.create(), Math.random(), Math.random())
 
     setUniforms(this.programInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.programInfo.attribSetters, this.bufferInfo);

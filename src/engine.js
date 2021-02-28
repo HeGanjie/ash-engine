@@ -7,6 +7,7 @@ import {faceVerticesPropNameDict} from './constants'
 import sphere from 'primitive-sphere'
 import plane from 'primitive-plane'
 import cube from 'primitive-cube'
+import {calcAreaOfTriangle} from "./utils";
 
 window.earcut = earcut
 window.vec3 = vec3
@@ -203,7 +204,10 @@ export class Geometry {
       uvs: _.isEmpty(uvs) ? positions.map(() => vec2.fromValues(0, 0)) : _.map(uvs, uv => vec2.fromValues(...uv)),
       faces: cells.map((c, ci) => {
         return {
-          data: c.map(vi => ({V: vi, N: vi, T: vi}))
+          data: c.map(vi => ({V: vi, N: vi, T: vi})),
+          // 新属性
+          normal: faceNormals[ci],
+          area: calcAreaOfTriangle(...c.map(vi => positions[vi]))
         }
       })
     })
@@ -290,7 +294,7 @@ export class Material {
   albedo = 0.18;
   kS = 0.02; // phong model specular weight
   specularExp = 1;   // phong specular exponent
-  selfLuminous = 0;
+  selfLuminous = vec3.create();
 
   diffuseMapTexcoords = null; // auto gen
   specularMapTexcoords = null;

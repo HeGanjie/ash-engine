@@ -19,7 +19,7 @@ export default async function genScene() {
       geometry: Geometry.TrianglePlaneGeometry,
       material: new Material({
         color: {r: 1, g: 1, b: 0.5},
-        selfLuminous: 100,
+        // selfLuminous: 100,
         shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
       }),
       position: vec3.fromValues(0, 1, 0)
