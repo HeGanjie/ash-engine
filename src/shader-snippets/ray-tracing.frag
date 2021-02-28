@@ -98,6 +98,10 @@ vec3 sampleLight() {
             vec3 v2 = u_vertices[indices.z];
             float a = rand(), b = rand();
             // TODO optimise
+            if (1.0 <= a + b) {
+                a = 1.0 - a;
+                b = 1.0 - b;
+            }
             return v0 + a * (v1 - v0) + b * (v2 - v0);
         }
     }
