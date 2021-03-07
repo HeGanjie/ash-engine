@@ -20,6 +20,10 @@ uniform int u_lightFaceIdx[NUM_LIGHT_FACE_COUNT];
 uniform float u_areaOfLightFace[NUM_LIGHT_FACE_COUNT];
 uniform float u_areaOfLightSum;
 uniform vec2 ran;
+uniform sampler2D u_prevResult;
+uniform int u_renderCount;
+uniform float u_time;
+
 
 out vec4 glFragColor;
 
@@ -37,8 +41,8 @@ struct Intersection {
 
 vec2 seed;
 float rand() {
-    seed -= vec2(ran.x * ran.y);
-    return fract(sin(dot(seed, vec2(12.9898, 78.233))) * 43758.5453);
+    seed -= ran + vec2(u_time);
+    return fract(sin(dot(seed.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
 // https://www.shadertoy.com/view/MlGcDz
@@ -133,7 +137,7 @@ void main() {
     vec3 P = ray.origin + ray.direct * camRayIsect.nearestTUV.x;
     vec3 faceNormal = u_face_normals[nearestFaceIdx];
     vec3 EP = sampleLight(); // 在光源上采样点
-    vec3 shadowRayOrigin = P + faceNormal * 0.0001;
+    vec3 shadowRayOrigin = P + faceNormal * 0.0003;
     Ray shadowRay = Ray(shadowRayOrigin, normalize(EP - shadowRayOrigin));
     Intersection shadowRayIsect = sceneIntersect(shadowRay);
 
@@ -163,6 +167,9 @@ void main() {
 
     // TODO 计算间接光照，需要 RR
 
-    //    float depth = nearestTUV.x / 1500.0;
-    //    glFragColor.rgb += depth;
+    // https://zhuanlan.zhihu.com/p/58692781 滤波算法：Sn = Sn-1 * (n-1)/n + Cn / n
+    if (u_renderCount != 0) {
+        vec4 prevPixelColor = texelFetch(u_prevResult, ivec2(gl_FragCoord.xy), 0);
+        glFragColor.rgb = (prevPixelColor.rgb * vec3(u_renderCount - 1) + glFragColor.rgb) / vec3(u_renderCount);
+    }
 }

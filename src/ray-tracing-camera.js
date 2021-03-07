@@ -7,16 +7,25 @@ import {
   setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
-import {flatten, flatMap, uniqBy, sum} from "lodash";
+import {flatten, flatMap, uniqBy, sum, isEqual} from "lodash";
 
 export class RayTracingCamera {
   position = vec3.create();
   target = vec3.create();
   up = vec3.fromValues(0, 1, 0)
   fov = Math.PI / 2;
-  programInfo = null
+  rayTracingProgramInfo = null
+  outputProgramInfo = null
   bufferInfo = null
   uniformDict = {}
+  // 由于 webgl 限制不能同时读写同一个材质，所以用两个材质交替着读写
+  offScreenTextures = []
+  offScreenTextureWriteCursor = 0
+  offScreenFrameBuffer = null
+  renderCount = 0
+  prevPosition = this.position
+  prevTarget = this.target
+  beginTime = Date.now()
 
   constructor() {
   }
@@ -30,7 +39,45 @@ export class RayTracingCamera {
         .reduce((acc, m) => acc + m.geometry.faces.length, 0),
       NUM_MATERIALS_COUNT: uniqBy(scene.meshes.map(m => m.material), m => m.id).length
     })
-    this.programInfo = createProgramInfo(gl, [vert, frag])
+    this.rayTracingProgramInfo = createProgramInfo(gl, [vert, frag])
+
+    // TODO 窗口大小变化时重置贴图大小
+    // 创建纹理，用于累加计算，创建
+    // 定义 0 级的大小和格式
+    const level = 0;
+    const internalFormat = gl.RGBA;
+    const border = 0;
+    const format = gl.RGBA;
+    const type = gl.UNSIGNED_BYTE;
+    const data = null;
+    this.offScreenTextures[0] = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.offScreenTextures[0]);
+    gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, gl.canvas.width, gl.canvas.height, border, format, type, data);
+    // 设置筛选器，不需要使用贴图
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    this.offScreenTextures[1] = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.offScreenTextures[1]);
+    gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, gl.canvas.width, gl.canvas.height, border, format, type, data);
+    // 设置筛选器，不需要使用贴图
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    this.offScreenTextureWriteCursor = 0
+    // 创建并绑定帧缓冲
+    this.offScreenFrameBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.offScreenFrameBuffer);
+    // 附加纹理为第一个颜色附件
+    const attachmentPoint = gl.COLOR_ATTACHMENT0;
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.offScreenTextures[this.offScreenTextureWriteCursor], level);
+  }
+
+  initRenderTextureShader(scene, gl) {
+    let [vert, frag] = buildShader(SHADER_IMPLEMENT_STRATEGY.renderTexture, {})
+    this.outputProgramInfo = createProgramInfo(gl, [vert, frag])
   }
 
   initBuffer(scene, gl) {
@@ -60,22 +107,37 @@ export class RayTracingCamera {
     this.bufferInfo = bufferInfo
   }
 
-  render(scene, gl) {
+  renderRayTracing(scene, gl) {
     resizeCanvasToDisplaySize(gl.canvas)
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.offScreenFrameBuffer);
+    // 附加纹理为第一个颜色附件
+    const level = 0;
+    const attachmentPoint = gl.COLOR_ATTACHMENT0;
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.offScreenTextures[this.offScreenTextureWriteCursor], level);
+
+    // 视角变化后需要重置 renderCount
+    if (!isEqual(this.position, this.prevPosition) || !isEqual(this.target, this.prevTarget)) {
+      this.renderCount = 0
+    }
+    vec3.copy(this.prevPosition, this.position)
+    vec3.copy(this.prevTarget, this.target)
+    if (this.renderCount === 0) {
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
+
     gl.enable(gl.CULL_FACE);
     gl.enable(gl.DEPTH_TEST);
 
-    if (!this.programInfo) {
+    if (!this.rayTracingProgramInfo) {
       this.initShader(scene, gl);
     }
     if (!this.bufferInfo) {
       this.initBuffer(scene, gl)
     }
-    gl.useProgram(this.programInfo.program);
+    gl.useProgram(this.rayTracingProgramInfo.program);
 
     const uniformDict = this.uniformDict;
     uniformDict.u_resolution = vec2.set(uniformDict.u_resolution || vec2.create(), gl.canvas.width, gl.canvas.height)
@@ -119,9 +181,49 @@ export class RayTracingCamera {
     })
     uniformDict.u_areaOfLightSum = uniformDict.u_areaOfLightSum || sum(uniformDict.u_areaOfLightFace)
     uniformDict.u_ran = vec2.set(uniformDict.u_ran || vec2.create(), Math.random(), Math.random())
+    uniformDict.u_prevResult = this.offScreenTextures[(this.offScreenTextureWriteCursor + 1) % 2]
+    uniformDict.u_renderCount = this.renderCount++
+    uniformDict.u_time = (Date.now() - this.beginTime) / 1000
 
-    setUniforms(this.programInfo.uniformSetters, uniformDict);
-    setBuffersAndAttributes(gl, this.programInfo.attribSetters, this.bufferInfo);
+    setUniforms(this.rayTracingProgramInfo.uniformSetters, uniformDict);
+    setBuffersAndAttributes(gl, this.rayTracingProgramInfo.attribSetters, this.bufferInfo);
     gl.drawElements(gl.TRIANGLES, this.bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
+  }
+
+  renderTexture(scene, gl) {
+    if (!this.outputProgramInfo) {
+      this.initRenderTextureShader(scene, gl);
+    }
+    if (!this.bufferInfo) {
+      this.initBuffer(scene, gl)
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    resizeCanvasToDisplaySize(gl.canvas)
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.CULL_FACE);
+    gl.enable(gl.DEPTH_TEST);
+
+    gl.useProgram(this.outputProgramInfo.program);
+
+    const uniformDict = this.uniformDict;
+    uniformDict.u_offScreenTexture = this.offScreenTextures[this.offScreenTextureWriteCursor]
+
+    setUniforms(this.outputProgramInfo.uniformSetters, uniformDict);
+    setBuffersAndAttributes(gl, this.outputProgramInfo.attribSetters, this.bufferInfo);
+    gl.drawElements(gl.TRIANGLES, this.bufferInfo.numElements, gl.UNSIGNED_SHORT, 0);
+  }
+
+  render(scene, gl) {
+    // 渲染到光线跟踪累加贴图
+    this.renderRayTracing(scene, gl)
+
+    // 把累加贴图渲染到 canvas
+    this.renderTexture(scene, gl)
+
+    this.offScreenTextureWriteCursor = (this.offScreenTextureWriteCursor + 1) % 2
   }
 }

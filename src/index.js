@@ -6,6 +6,7 @@ import genScene2 from './scene2'
 import genScene3 from './scene3'
 import genScene4 from './scene4-ray-tracing'
 import FirstPersonCameraCtrl from './first-person-camera-ctrl'
+import {vec2} from 'gl-matrix'
 
 
 let shell = gameShell({pointerLock: true})
@@ -47,16 +48,21 @@ shell.on("render", (frame_time) => {
   stats.end()
 })
 
+const ctrlFlags = [], mousePos = vec2.create(), prevMousePos = vec2.create()
 shell.on("tick", function() {
   if (!sceneCtrl || !ctx) {
     return
   }
-  const ctrlFlags = [
-    this.down('W'), this.down('S'),
-    this.down('A'), this.down('D'),
-    this.down('space'), this.down('shift'),
-  ];
-  cameraCtrl.control(this.tickTime, ctrlFlags, [this.mouseX, this.mouseY], [this.prevMouseX, this.prevMouseY])
+
+    ctrlFlags.length = 0
+    ctrlFlags.push(
+      this.down('W'), this.down('S'),
+      this.down('A'), this.down('D'),
+      this.down('space'), this.down('shift'),
+    )
+    cameraCtrl.control(this.tickTime, ctrlFlags,
+      vec2.set(mousePos, this.mouseX, this.mouseY),
+      vec2.set(prevMousePos, this.prevMouseX, this.prevMouseY))
 
   sceneCtrl.camera.position = cameraCtrl.position
   sceneCtrl.camera.target = cameraCtrl.target

@@ -3,13 +3,15 @@ import {diffuseMapShaderImpl} from './diffuse-map-shader'
 import {shadowMapShaderImpl} from './shadow-map-shader'
 import {pbrShaderImpl} from './pbr-shader'
 import {rayTracingShaderImpl} from "./ray-tracing";
+import {renderTextureShaderImpl} from "./render-texture";
 
 export const SHADER_IMPLEMENT_STRATEGY = {
   diffuseMap: 'diffuseMap',
   pbr: 'pbr',
   lambert: 'lambert',
   shadowMap: 'shadowMap',
-  rayTracing: 'rayTracing'
+  rayTracing: 'rayTracing',
+  renderTexture: 'renderTexture'
 }
 
 const SHADER_IMPLEMENT_DICT = {
@@ -17,7 +19,8 @@ const SHADER_IMPLEMENT_DICT = {
   pbr: pbrShaderImpl,
   lambert: lambertShaderImpl,
   shadowMap: shadowMapShaderImpl,
-  rayTracing: rayTracingShaderImpl
+  rayTracing: rayTracingShaderImpl,
+  renderTexture: renderTextureShaderImpl
 }
 
 export function buildShader(key, consts = {}) {
