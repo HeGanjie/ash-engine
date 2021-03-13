@@ -65,7 +65,7 @@ export default async function genScene() {
     { r: 1, g: 0.6, b: 0.6 },
     1000
   );
-  let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1, pointLight2]);
+  let scene = new Scene([planeMesh, cubeMesh], [distantLight, pointLight1/*, pointLight2*/]);
   await scene.genTexcoordsForMainTexture()
 
   let camera = new Camera();

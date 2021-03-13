@@ -57,9 +57,9 @@ export default async function genScene() {
   );
 
   let pointLightPositions = [
-    vec3.fromValues(-10, 10, 10),
+    // vec3.fromValues(-10, 10, 10),
     vec3.fromValues(10, 10, 10),
-    vec3.fromValues(-10, -10, 10),
+    // vec3.fromValues(-10, -10, 10),
     // vec3.fromValues(10, -10, 10)
   ]
   let pointLights = pointLightPositions.map(pPos => PointLight.create(pPos, {r: 1, g: 1, b: 1}, 8000))
