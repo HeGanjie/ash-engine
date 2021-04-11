@@ -25,6 +25,7 @@
  - [ ] Deferred rendering (https://learnopengl.com/Advanced-Lighting/Deferred-Shading)
  - [ ] Realtime path tracing (https://zhuanlan.zhihu.com/p/58692781)
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
+ - [ ] PCF, PCSS, VSM, MSM (GAMES 202)
  - [ ] Distance Field shadow (https://zhuanlan.zhihu.com/p/50128840)
  - [ ] Transparent objects
  - [ ] Refraction objects
