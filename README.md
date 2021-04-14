@@ -10,7 +10,7 @@
 ### Preview
 1. [Rotating box](https://heganjie.github.io/ash-engine/dist?scene=0)
 2. [Pbr material](https://heganjie.github.io/ash-engine/dist?scene=2)
-2. [Ray tracing(WIP)](https://heganjie.github.io/ash-engine/dist?scene=3)
+2. [Ray tracing](https://heganjie.github.io/ash-engine/dist?scene=3)
 
 ### RoadMap
  - [x] Lambert + Blinn-Phong material
@@ -23,7 +23,7 @@
  - [ ] Pbr IBL (https://learnopengl.com/PBR/IBL/Diffuse-irradiance)
  - [ ] Using .Obj loader
  - [ ] Deferred rendering (https://learnopengl.com/Advanced-Lighting/Deferred-Shading)
- - [ ] Realtime path tracing (https://zhuanlan.zhihu.com/p/58692781)
+ - [x] Realtime path tracing (https://zhuanlan.zhihu.com/p/58692781)
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
  - [ ] PCF, PCSS, VSM, MSM (GAMES 202)
  - [ ] Distance Field shadow (https://zhuanlan.zhihu.com/p/50128840)
