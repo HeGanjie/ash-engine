@@ -40,6 +40,11 @@ struct Intersection {
     int nearestFaceIdx;
 };
 
+highp float rand_1to1(highp float x ) {
+    // -1 -1
+    return fract(sin(x)*10000.0);
+}
+
 highp float rand_2to1(vec2 uv) {
     // 0 - 1
     const highp float a = 12.9898, b = 78.233, c = 43758.5453;
@@ -49,11 +54,10 @@ highp float rand_2to1(vec2 uv) {
 
 float cnt;
 highp float rand() {
-    float pos = gl_FragCoord.x + gl_FragCoord.y * 1920.0 + gl_FragCoord.z;
+    highp float pos = gl_FragCoord.x + gl_FragCoord.y / 1080.0 + gl_FragCoord.z;
 
     cnt += 1.0;
-    highp vec2 seed = vec2(fract(sin(u_time + cnt) * 100000.0), fract(sin(pos + cnt) * 100000.0));// TODO 简化？
-    return rand_2to1(seed);
+    return rand_1to1(u_time + pos * 2.618 + cnt);
 }
 
 // https://www.shadertoy.com/view/MlGcDz
