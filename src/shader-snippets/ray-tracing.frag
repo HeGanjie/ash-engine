@@ -16,6 +16,9 @@ uniform vec3 u_face_normals[NUM_FACES_COUNT];
 uniform int u_face_material_ids[NUM_FACES_COUNT];
 uniform mat4 u_local_to_world_matrixs[NUM_MESHES_COUNT];
 uniform vec3 u_material_colors[NUM_MATERIALS_COUNT];
+uniform float u_material_roughness[NUM_MATERIALS_COUNT];
+uniform float u_material_metallic[NUM_MATERIALS_COUNT];
+uniform int u_material_type[NUM_MATERIALS_COUNT];
 uniform vec3 u_material_emits[NUM_MATERIALS_COUNT];
 uniform int u_lightFaceIdx[NUM_LIGHT_FACE_COUNT];
 uniform float u_areaOfLightFace[NUM_LIGHT_FACE_COUNT];
@@ -136,22 +139,122 @@ vec3 toWorld(vec3 local, vec3 N) {
     return local.x * Nb + local.y * N + local.z * Nt;
 }
 
-vec3 sampleHalfHemisphere(vec3 wo, vec3 N) {
-    float r1 = rand(), r2 = rand();
-    // cos(theta) = r1 = y
-    // cos^2(theta) + sin^2(theta) = 1 -> sin(theta) = srtf(1 - cos^2(theta))
-    float sinTheta = sqrt(1.0 - r1 * r1);
-    float phi = 2.0 * M_PI * r2;
-    float x = sinTheta * cos(phi);
-    float z = sinTheta * sin(phi);
-    vec3 local = vec3(x, r1, z);
+vec3 sampleHalfHemisphere(vec3 wi, vec3 N, int materialIdx) {
+    int materialType = u_material_type[materialIdx];
 
-    return toWorld(local, N);
+    if (materialType == 0) {
+        float r1 = rand(), r2 = rand();
+        // cos(theta) = r1 = y
+        // cos^2(theta) + sin^2(theta) = 1 -> sin(theta) = srtf(1 - cos^2(theta))
+        float sinTheta = sqrt(1.0 - r1 * r1);
+        float phi = 2.0 * M_PI * r2;
+        float x = sinTheta * cos(phi);
+        float z = sinTheta * sin(phi);
+        vec3 local = vec3(x, r1, z);
+
+        return toWorld(local, N);
+    } else {
+        // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
+        float r1 = rand(), r2 = rand();
+
+        float roughness = u_material_roughness[materialIdx];
+
+        float a = roughness*roughness;
+        float phi = 2.0 * M_PI * r1;
+        float cosTheta = sqrt((1.0 - r2) / (1.0 + (a*a - 1.0) * r2));
+        float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
+
+        vec3 H = vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
+        vec3 Hw = toWorld(H, N);
+        vec3 L  = normalize(2.0 * dot(wi, Hw) * Hw - wi);
+        return L;
+    }
 }
 
-vec3 lambertBRDF(vec3 wi, vec3 wo, vec3 N, vec3 kd) {
-    // lambert 漫反射
-    return step(0.0, dot(wo, N)) * kd / M_PI;
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float DistributionGGX(float NdotH, float roughness) {
+    float a      = roughness*roughness;
+    float a2     = a*a;
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = M_PI * denom * denom;
+
+    return nom / denom;
+}
+
+float GeometrySchlickGGX(float NdotV, float k) {
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+    float ggx2  = GeometrySchlickGGX(NdotV, k);
+    float ggx1  = GeometrySchlickGGX(NdotL, k);
+
+    return ggx1 * ggx2;
+}
+
+vec3 eval(vec3 wi, vec3 wo, vec3 N, int materialIdx) {
+    int materialType = u_material_type[materialIdx];
+    vec3 kd = u_material_colors[materialIdx];
+    if (materialType == 0) {
+        // lambert 漫反射
+        return step(0.0, dot(wo, N)) * kd / M_PI;
+    } else {
+        // pbr https://learnopengl-cn.github.io/07%20PBR/02%20Lighting/
+        float cosalpha = dot(N, wo);
+        if (cosalpha <= 0.0) {
+            return vec3(0.0);
+        }
+        vec3 diffuse = kd / M_PI;
+        vec3 h = normalize(wi + wo);
+        float NdotH = max(dot(N, h), 0.0);
+
+        float roughness = u_material_roughness[materialIdx];
+        float metallic = u_material_metallic[materialIdx];
+
+        vec3 F0 = mix(vec3(0.04), kd, metallic);
+        vec3 F  = fresnelSchlickRoughness(max(dot(h, wo), 0.0), F0, roughness);
+
+        vec3 nominator = DistributionGGX(NdotH, roughness) * GeometrySmith(N, wo, wi, roughness) * F;
+        float denominator = 4.0 * max(dot(N, wo), 0.0) * max(dot(N, wi), 0.0) + 0.001;
+        vec3 specular = nominator / denominator;
+
+        return (-F + 1.0) * (1.0 - metallic) * diffuse + F * specular;
+    }
+}
+
+float pdf(vec3 wi, vec3 wo, vec3 N, int materialIdx){
+    int materialType = u_material_type[materialIdx];
+
+    if (dot(wo, N) <= 0.0) {
+        return 0.0;
+    }
+    if (materialType == 0) {
+        // uniform sample probability 1 / (2 * PI)
+        return 0.5 / M_PI;
+    } else {
+        // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
+        float roughness = u_material_roughness[materialIdx];
+
+        vec3 h = normalize(wi + wo);
+        float NdotH = max(dot(N, h), 0.0);
+        float HdotV = max(dot(h, wo), 0.0);
+
+        float D   = DistributionGGX(NdotH, roughness);
+        return (D * NdotH / (4.0 * HdotV)) + 0.0001;
+    }
 }
 
 // 计算 P 点往 wo 方向发出了多少光
@@ -170,14 +273,12 @@ vec3 castRay(Ray ray) {
         int nearestFaceIdx = camRayIsect.nearestFaceIdx;
 
         if (-1 == nearestFaceIdx) {
-//          return vec3(0.0, 0.0, 0.0);
             break;
         }
         // 如果是光源，则直接显示灯光颜色
         int materialIdx = u_face_material_ids[nearestFaceIdx];
         vec3 emit = u_material_emits[materialIdx];
         if (0.0 < emit.x) {
-//          return emit;
             acc += scale * emit;
             break;
         }
@@ -201,8 +302,7 @@ vec3 castRay(Ray ray) {
             if (0.0 < emit.r) {
                 vec3 wsPreNorm = EP - P;
                 vec3 ws = normalize(wsPreNorm);
-                vec3 kd = u_material_colors[materialIdx];
-                vec3 brdf = lambertBRDF(ws, wo, N, kd);
+                vec3 brdf = eval(ws, wo, N, materialIdx);
                 float wsDotN = dot(ws, N);
                 vec3 Ns = u_face_normals[shadowRayIsect.nearestFaceIdx];
                 float negWsDotNs = dot(-ws, Ns);
@@ -219,77 +319,26 @@ vec3 castRay(Ray ray) {
         // 计算间接光照，需要 RR
         float pRR = rand();
         if (P_RR < pRR) {
-//          return lDir;
             break;
         }
-        vec3 pwi = sampleHalfHemisphere(wo, N); // p 点输入光线的立体角
+        vec3 pwi = sampleHalfHemisphere(wo, N, materialIdx); // p 点输入光线的立体角
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 
         if (ray2Isect.nearestFaceIdx == -1 || 0.0 < u_material_emits[u_face_material_ids[ray2Isect.nearestFaceIdx]].r) {
-//          return lDir;
             break;
         }
 
         // L_indir = shade(q, wi) * eval(wo, wi, N) * dot(wi, N) / pdf(wo, wi, N) / RussianRoulette
-        vec3 kd = u_material_colors[materialIdx];
-        float pdf = 0.5 / M_PI;
+        float pdfVal = pdf(pwi, wo, N, materialIdx);
 
-        vec3 nextScale = lambertBRDF(pwi, wo, N, kd) * max(0.0, dot(pwi, N)) / pdf / P_RR;
-//      vec3 lInDir = castRay(ray2) * lambertBRDF(wi, wo, N, kd) * max(0.0, dot(wi, N)) / pdf / P_RR;
+        vec3 nextScale = eval(pwi, wo, N, materialIdx) * max(0.0, dot(pwi, N)) / pdfVal / P_RR;
         ray = ray2;
         scale *= nextScale;
     }
-//  return lDir + lInDir;
     return acc;
 }
 
-/*vec3 castRay_t(Ray r, vec3 acc, float scale) { // primary ray, vec3(0.0), 1.0
-    // A + b * x
-    // A + b * (C + d * x) -> A+bC + bd*x
-    // A + b * (C + d * (E + f * x)) -> A + bC + b*(d * (E + f * x)) -> A+bC+bdE + bdf*x
-    // ...
-
-    vec3 lDir = vec3(0.05);
-
-    float pRR = rand();
-    if (pRR < P_RR) {
-        return acc + scale * lDir;
-    }
-    Ray r2;
-
-    float nextScale = 0.1;
-//    return lDir + castRay_t(r2) * nextScale;
-    return castRay_t(r2, acc + scale * lDir, scale * nextScale);
-}
-
-vec3 castRayLoop(Ray r) { // primary ray, vec3(0.0), 1.0
-    Ray currRay = r;
-    vec3 acc = vec3(0.0);
-    float scale = 1.0;
-    // A + b * x
-    // A + b * (C + d * x) -> A+bC + bd*x
-    // A + b * (C + d * (E + f * x)) -> A + bC + b*(d * (E + f * x)) -> A+bC+bdE + bdf*x
-    // ...
-
-    while(true) {
-        vec3 lDir = vec3(0.05);
-
-        acc += scale * lDir;
-
-        float pRR = rand();
-        if (pRR < P_RR) {
-            break;
-        }
-        Ray r2;
-        float nextScale = 0.1;
-
-        currRay = r2;
-        scale *= nextScale;
-    }
-
-    return acc;
-}*/
 
 void main() {
     // 渲染背景色

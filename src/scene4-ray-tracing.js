@@ -33,6 +33,13 @@ export default async function genScene() {
     color: {r: 0.63, g: 0.065, b: 0.05},
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   })
+  let mirror = new Material({
+    color: {r: 0.95, g: 0.93, b: 0.88},
+    shaderImpl: SHADER_IMPLEMENT_STRATEGY.pbr,
+    roughness: 0.03,
+    metallic: 1.0
+  });
+
   const light = new Material({
     color: {r: 0.65, g: 0.65, b: 0.65}, // from games101 assignment7
     selfLuminous: vec3.fromValues(47.8348, 38.5664, 31.0808),
@@ -54,7 +61,8 @@ export default async function genScene() {
     new Mesh({
       name: 'tallBox',
       geometry: tallBoxGeometry,
-      material: white // TODO ues mirror material
+      // material: white
+      material: mirror
     }),
     new Mesh({
       name: 'left',
@@ -72,11 +80,11 @@ export default async function genScene() {
       material: light
     })
   ]
-  let distantLight = new DistantLight(
+  /*let distantLight = new DistantLight(
     mat4.fromXRotation(mat4.create(), (-135* Math.PI) / 180),
     { r: 1, g: 1, b: 1 },
     10
-  );
+  );*/
   let scene = new Scene(meshes, [/*distantLight*/]);
   await scene.genTexcoordsForMainTexture()
 

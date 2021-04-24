@@ -167,6 +167,16 @@ export class RayTracingCamera {
       let {r, g, b} = m.color
       return [r, g, b]
     })
+    uniformDict.u_material_roughness = uniformDict.u_material_roughness || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
+      return m.roughness ?? 1.0
+    })
+    uniformDict.u_material_metallic = uniformDict.u_material_metallic || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
+      return m.metallic ?? 0.0
+    })
+    uniformDict.u_material_type = uniformDict.u_material_type || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
+      return m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 0 : 1
+    })
+
     uniformDict.u_material_emits = uniformDict.u_material_emits || flatMap(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => {
       return [...m.selfLuminous]
     })
