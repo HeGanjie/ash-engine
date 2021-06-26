@@ -5,6 +5,7 @@ import genScene1 from './scene1'
 import genScene2 from './scene2'
 import genScene3 from './scene3'
 import genScene4 from './scene4-ray-tracing'
+import genScene5 from './scene5-veach'
 import FirstPersonCameraCtrl from './first-person-camera-ctrl'
 import {vec2} from 'gl-matrix'
 
@@ -29,7 +30,7 @@ shell.on("init", async () => {
     throw new Error('Not support webgl2')
   }
   let watchScene = (window.location.search || '').match(/scene=(\d+)/)?.[1] || 3
-  let sceneGenFn = [genScene1, genScene2, genScene3, genScene4][watchScene]
+  let sceneGenFn = [genScene1, genScene2, genScene3, genScene4, genScene5][watchScene]
   sceneCtrl = await sceneGenFn()
 
   cameraCtrl = new FirstPersonCameraCtrl({

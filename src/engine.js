@@ -58,7 +58,7 @@ async function mergeImgs(mainTextureWidth, mainTextureHeight, idealArrangement) 
   })
 }
 
-function fromStackGlPrimitive(obj) {
+export function fromStackGlPrimitive(obj) {
   // cells: [[0, 1, 2], [2, 3, 0]]
   // normals: [[0, 0, -1], [0, 0, -1], [0, 0, -1], [0, 0, -1]]
   // positions: [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
@@ -165,7 +165,7 @@ export class Geometry {
     const lines = objFileContent.split(/\s*\r?\n/);
     let positions = _.filter(lines, line => line[0] === 'v')
       .map(line => {
-        let m = line.match(/^v\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*$/)
+        let m = line.match(/^v\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/)
         if (!m) {
           throw new Error(`malformed input: ${line}`)
         }
