@@ -24,6 +24,7 @@ export class RayTracingCamera {
   offScreenFrameBuffer = null
   renderCount = 0
   dataTexture = null
+  dataTextureSize = [32, 32]
   prevPosition = this.position
   prevTarget = this.target
   beginTime = Date.now()
@@ -118,6 +119,7 @@ export class RayTracingCamera {
     const textureWidth = pow(2, ceil(log2(sqrt(dataTextureData.length / 4))))
     const textureHeight = ceil(dataTextureData.length / 4 / textureWidth)
     this.dataTexture = gl.createTexture();
+    this.dataTextureSize = [textureWidth, textureHeight]
     gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
 
     // https://webgl2fundamentals.org/webgl/lessons/zh_cn/webgl-data-textures.html
@@ -259,6 +261,7 @@ export class RayTracingCamera {
     uniformDict.u_ran = vec2.set(uniformDict.u_ran || vec2.create(), Math.random(), Math.random())
     uniformDict.u_prevResult = this.offScreenTextures[(this.offScreenTextureWriteCursor + 1) % 2]
     uniformDict.u_data_texture = this.dataTexture
+    uniformDict.u_data_texture_width = this.dataTextureSize[0]
     uniformDict.u_renderCount = this.renderCount++
     uniformDict.u_time = (Date.now() - this.beginTime) / 1000
 

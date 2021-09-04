@@ -14,6 +14,7 @@ uniform float u_areaOfLightSum;
 uniform vec2 ran;
 uniform sampler2D u_prevResult;
 uniform sampler2D u_data_texture;
+uniform int u_data_texture_width;
 uniform int u_renderCount;
 uniform float u_time;
 
@@ -66,8 +67,7 @@ struct MaterialInfo {
 };
 
 vec4 readDataTexture(int offset) {
-    int dataTextureWidth = textureSize(u_data_texture, 0).x;
-    return texelFetch(u_data_texture, ivec2(offset % dataTextureWidth, offset / dataTextureWidth), 0);
+    return texelFetch(u_data_texture, ivec2(offset % u_data_texture_width, offset / u_data_texture_width), 0);
 }
 
 MeshInfo getMeshInfo(int meshIdx) {
