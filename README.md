@@ -24,6 +24,7 @@
  - [ ] Using .Obj loader
  - [ ] Deferred rendering (https://learnopengl.com/Advanced-Lighting/Deferred-Shading)
  - [x] Realtime path tracing (https://zhuanlan.zhihu.com/p/58692781)
+ - [ ] Cosine weighted hemisphere sampling MC
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
  - [ ] PCF, PCSS, VSM, MSM (GAMES 202)
  - [ ] Distance Field shadow (https://zhuanlan.zhihu.com/p/50128840)

@@ -1,4 +1,4 @@
-import {vec3, mat4, vec2, quat} from "gl-matrix";
+import {mat4, quat, vec2, vec3} from "gl-matrix";
 import {buildShader, SHADER_IMPLEMENT_STRATEGY} from "./shader-impl";
 import {
   createBufferInfoFromArrays,
@@ -7,7 +7,7 @@ import {
   setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
-import {flatten, flatMap, uniqBy, sum, isEqual} from "lodash";
+import {flatMap, flatten, isEqual, orderBy, sum, uniqBy, range} from "lodash";
 
 export class RayTracingCamera {
   position = vec3.create();
@@ -23,11 +23,116 @@ export class RayTracingCamera {
   offScreenTextureWriteCursor = 0
   offScreenFrameBuffer = null
   renderCount = 0
+  dataTexture = null
   prevPosition = this.position
   prevTarget = this.target
   beginTime = Date.now()
 
   constructor() {
+  }
+
+  createDataTexture(scene, gl) {
+    // dataImageMeta: meshCount, meshMetaOffset, bvhNodeCount,bvhNodeOffset；
+    //                materialCount, materialOffset, emitTriangleCount, emitTriangleOffset；vec4 * 2
+    // meshMeta: data offset, triangleCount, materialID；vec4 * meshCount
+    // mesh model mat4; world point * 3；uv * 3；world normal * 3；vec4 * (4 + 9 * n)
+    // ...
+    // bvhNode：boundMin；boundMax；leftNodeIdx, rightNodeIdx, child meshIdx, triangleIdx；vec4 * 3 * n
+    // material：ID，roughness，metallic, type；albedo；emit intensity；vec4 * 3 * n
+    // emit triangles：triangle area, meshIdx, faceIdx；vec4 * n
+
+    const materials = orderBy(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => m.id);
+    const meshCount = scene.meshes.length;
+    const meshMetaOffset = 2;
+    const meshDataOffset = meshMetaOffset + meshCount;
+
+    const quatTmp = quat.create();
+    const mat4Tmp = mat4.create();
+    const mat4Tmp2 = mat4.create()
+    const vec3Tmp = vec3.create();
+    const meshDataArr = scene.meshes.map(m => {
+      const {rotation, position, scale, geometry} = m;
+      const qRot = quat.fromEuler(quatTmp, ...rotation);
+      const {faces, vertices, uvs, normals} = geometry
+      const modelMat = mat4.fromRotationTranslationScale(mat4Tmp, qRot, position, scale);
+      const mTransformForNormal = mat4.transpose(mat4Tmp2, mat4.invert(mat4Tmp2, modelMat))
+
+      return [
+        ...modelMat,
+        ...flatMap(faces, f => {
+          const indices = f.data;
+          return [
+            // vec4 point * 3
+            ...flatMap(indices, d => {
+              const worldPoint = vec3.transformMat4(vec3Tmp, vertices[d.V], modelMat)
+              return [...worldPoint, 1];
+            }),
+            ...flatMap(indices, d => [...uvs[d.T], 0, 0]), // vec4 uv * 3
+            // vec4 normals * 3
+            ...flatMap(indices, d => {
+              const worldNormal = vec3.transformMat4(vec3Tmp, normals[d.N], mTransformForNormal)
+              return [...worldNormal, 1];
+            })
+          ]
+        })
+      ]
+    })
+    let meshOffset = meshDataOffset
+    const meshMeta = flatMap(scene.meshes, (m, i) => {
+      const currMeshOffset = meshOffset
+      meshOffset += meshDataArr[i].length / 4
+      return [currMeshOffset, m.geometry.faces.length, m.material.id, 0]
+    })
+    const bvhNodeCount = 0
+    const bvhNodeOffset = meshOffset
+    const materialCount = materials.length
+    const materialOffset = bvhNodeOffset // TODO 考虑 bvh 数据
+    const materialData = flatMap(materials, m => {
+      const {r, g, b} = m.color
+      const materialType = m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 0 : 1
+      return [
+        m.id, m.roughness ?? 1, m.metallic ?? 0, materialType,
+        r, g, b, 1,
+        ...m.selfLuminous, 0
+      ]
+    })
+    const emitTrianglesData = flatMap(scene.meshes, (m, mIdx) => {
+      if (!(m.material.selfLuminous[0] > 0)) {
+        return []
+      }
+      return m.geometry.faces.map((f, fi) => [f.area, mIdx, fi, 0])
+    })
+    const emitTrianglesCount = emitTrianglesData.length
+    const emitTriangleOffset = materialOffset + materialCount * 3
+    const dataTextureData = [
+      meshCount, meshMetaOffset, bvhNodeCount, bvhNodeOffset,
+      materialCount, materialOffset, emitTrianglesCount, emitTriangleOffset,
+      ...meshMeta,
+      ...flatten(meshDataArr),
+      // TODO bvh data
+      ...materialData,
+      ...flatten(emitTrianglesData)
+    ];
+
+    const {pow, ceil, log2, sqrt} = Math
+    const textureWidth = pow(2, ceil(log2(sqrt(dataTextureData.length / 4))))
+    const textureHeight = ceil(dataTextureData.length / 4 / textureWidth)
+    this.dataTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
+
+    // https://webgl2fundamentals.org/webgl/lessons/zh_cn/webgl-data-textures.html
+    // gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+    // https://stackoverflow.com/questions/54276566/webgl-invalid-operation-teximage2d-arraybufferview-not-big-enough-for-reques/54276828
+    const fullSize = textureWidth * textureHeight * 4
+    const alignedTextureData = [...dataTextureData, ...range(fullSize - dataTextureData.length).map(() => 0)]
+    
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, textureWidth, textureHeight, 0, gl.RGBA, gl.FLOAT, new Float32Array(alignedTextureData));
+    // 设置筛选器，我们不需要使用贴图所以就不用筛选器了
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   }
 
   initShader(scene, gl) {
@@ -40,6 +145,8 @@ export class RayTracingCamera {
       NUM_MATERIALS_COUNT: uniqBy(scene.meshes.map(m => m.material), m => m.id).length
     })
     this.rayTracingProgramInfo = createProgramInfo(gl, [vert, frag])
+
+    this.createDataTexture(scene, gl)
 
     // TODO 窗口大小变化时重置贴图大小
     // 创建纹理，用于累加计算，创建
@@ -144,54 +251,14 @@ export class RayTracingCamera {
     uniformDict.u_eye_pos = this.position
     uniformDict.u_fov = this.fov
     uniformDict.u_cam_to_world = mat4.targetTo(uniformDict.u_cam_to_world || mat4.create(), this.position, this.target, this.up)
-    // TODO optimize gc
-    uniformDict.u_vertices = uniformDict.u_vertices || flatMap(scene.meshes, m => flatMap(m.geometry.vertices, v => [...v]))
-    let verticesOffset = 0
-    uniformDict.u_indices = uniformDict.u_indices || flatMap(scene.meshes, m => {
-      let result = flatMap(m.geometry.faces, f => f.data.map(d => d.V + verticesOffset));
-      verticesOffset += m.geometry.vertices.length
-      return result
-    })
-    uniformDict.u_face_normals = uniformDict.u_face_normals || flatMap(scene.meshes, m => {
-      return flatMap(m.geometry.faces, f => [...f.normal])
-    })
-    uniformDict.u_face_material_ids = uniformDict.u_face_material_ids || flatMap(scene.meshes, m => {
-      return m.geometry.faces.map(() => m.material.id);
-    })
-    uniformDict.u_local_to_world_matrixs = uniformDict.u_local_to_world_matrixs || flatMap(scene.meshes, m => {
-      let {rotation, position, scale} = m;
-      let qRot = quat.fromEuler(quat.create(), ...rotation)
-      return [...mat4.fromRotationTranslationScale(mat4.create(), qRot, position, scale)]
-    })
-    uniformDict.u_material_colors = uniformDict.u_material_colors || flatMap(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => {
-      let {r, g, b} = m.color
-      return [r, g, b]
-    })
-    uniformDict.u_material_roughness = uniformDict.u_material_roughness || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
-      return m.roughness ?? 1.0
-    })
-    uniformDict.u_material_metallic = uniformDict.u_material_metallic || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
-      return m.metallic ?? 0.0
-    })
-    uniformDict.u_material_type = uniformDict.u_material_type || uniqBy(scene.meshes.map(m => m.material), m => m.id).map(m => {
-      return m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 0 : 1
-    })
 
-    uniformDict.u_material_emits = uniformDict.u_material_emits || flatMap(uniqBy(scene.meshes.map(m => m.material), m => m.id), m => {
-      return [...m.selfLuminous]
-    })
-    let faceOffset = 0
-    uniformDict.u_lightFaceIdx = uniformDict.u_lightFaceIdx || flatMap(scene.meshes, m => {
-      let res = m.material.selfLuminous[0] <= 0 ? [] : m.geometry.faces.map((f, fi) => faceOffset + fi)
-      faceOffset += m.geometry.faces.length
-      return res
-    })
     uniformDict.u_areaOfLightFace = uniformDict.u_areaOfLightFace || flatMap(scene.meshes, m => {
       return m.material.selfLuminous[0] <= 0 ? [] : m.geometry.faces.map(f => f.area)
     })
     uniformDict.u_areaOfLightSum = uniformDict.u_areaOfLightSum || sum(uniformDict.u_areaOfLightFace)
     uniformDict.u_ran = vec2.set(uniformDict.u_ran || vec2.create(), Math.random(), Math.random())
     uniformDict.u_prevResult = this.offScreenTextures[(this.offScreenTextureWriteCursor + 1) % 2]
+    uniformDict.u_data_texture = this.dataTexture
     uniformDict.u_renderCount = this.renderCount++
     uniformDict.u_time = (Date.now() - this.beginTime) / 1000
 

@@ -9,25 +9,22 @@ in vec3 v_pos_world;
 
 uniform vec2 u_resolution;
 uniform vec3 u_eye_pos;
-// 模型信息
-uniform vec3 u_vertices[NUM_VERTICES_COUNT];
-uniform ivec3 u_indices[NUM_FACES_COUNT];
-uniform vec3 u_face_normals[NUM_FACES_COUNT];
-uniform int u_face_material_ids[NUM_FACES_COUNT];
-uniform mat4 u_local_to_world_matrixs[NUM_MESHES_COUNT];
-uniform vec3 u_material_colors[NUM_MATERIALS_COUNT];
-uniform float u_material_roughness[NUM_MATERIALS_COUNT];
-uniform float u_material_metallic[NUM_MATERIALS_COUNT];
-uniform int u_material_type[NUM_MATERIALS_COUNT];
-uniform vec3 u_material_emits[NUM_MATERIALS_COUNT];
-uniform int u_lightFaceIdx[NUM_LIGHT_FACE_COUNT];
-uniform float u_areaOfLightFace[NUM_LIGHT_FACE_COUNT];
+
 uniform float u_areaOfLightSum;
 uniform vec2 ran;
 uniform sampler2D u_prevResult;
+uniform sampler2D u_data_texture;
 uniform int u_renderCount;
 uniform float u_time;
 
+// dataImageMeta: meshCount, meshMetaOffset, bvhNodeCount,bvhNodeOffset；
+//                materialCount, materialOffset, emitTriangleCount, emitTriangleOffset；vec4 * 2
+// meshMeta: data offset, triangleCount, materialID；vec4 * meshCount
+// mesh model mat4; world point * 3；uv * 3；world normal * 3；vec4 * (4 + 9 * n)
+// ...
+// bvhNode：boundMin；boundMax；leftNodeIdx, rightNodeIdx, child meshIdx, triangleIdx；vec4 * 3 * n
+// material：ID，roughness，metallic, type；albedo；emit intensity；vec4 * 3 * n
+// emit triangles：triangle area, meshIdx, faceIdx；vec4 * n
 
 out vec4 glFragColor;
 
@@ -40,8 +37,81 @@ struct Ray {
 struct Intersection {
     Ray ray;
     vec3 nearestTUV;
+    int nearestMeshIdx;
     int nearestFaceIdx;
+    int faceMaterialIdx;
+    vec3 faceNormal;
 };
+
+struct MeshInfo {
+    int dataOffset;
+    int triangleCount;
+    int materialId;
+};
+
+struct TriangleInfo {
+    vec3 A, B, C;
+    float area; // 只有采样直接光照时候会用到
+//    vec2 uvA, uvB, uvC;
+//    vec3 nA, nB, nC;
+};
+
+struct MaterialInfo {
+    int materialId;
+    float roughness;
+    float metallic;
+    int type;
+    vec3 albedo;
+    vec3 emitIntensity;
+};
+
+vec4 readDataTexture(int offset) {
+    int dataTextureWidth = textureSize(u_data_texture, 0).x;
+    return texelFetch(u_data_texture, ivec2(offset % dataTextureWidth, offset / dataTextureWidth), 0);
+}
+
+MeshInfo getMeshInfo(int meshIdx) {
+    vec4 vals = readDataTexture(2 + meshIdx);
+    return MeshInfo(int(vals.x), int(vals.y), int(vals.z));
+}
+
+TriangleInfo getTriangleVertices(int meshIdx, int faceIdx) {
+    int triangleDataOffset = getMeshInfo(meshIdx).dataOffset + faceIdx * 9 + 4;
+    return TriangleInfo(
+        readDataTexture(triangleDataOffset).xyz,
+        readDataTexture(triangleDataOffset + 1).xyz,
+        readDataTexture(triangleDataOffset + 2).xyz,
+        0.0
+    );
+}
+
+TriangleInfo getEmitTriangle(int emitFaceIdx) {
+    int emitTriangleOffset = int(readDataTexture(1).w) + emitFaceIdx;
+    vec4 emitTriangleInfo = readDataTexture(emitTriangleOffset);
+    int meshIdx = int(emitTriangleInfo.y);
+    int faceIdx = int(emitTriangleInfo.z);
+
+    TriangleInfo tri = getTriangleVertices(meshIdx, faceIdx);
+    tri.area = emitTriangleInfo.x;
+    return tri;
+}
+
+MaterialInfo getMaterialInfo(int materialId) {
+    int materialOffset = int(readDataTexture(1).y) + materialId * 3;
+    vec4 materialInfo0 = readDataTexture(materialOffset);
+
+    return MaterialInfo(
+        int(materialInfo0.x), materialInfo0.y, materialInfo0.z, int(materialInfo0.w),
+        readDataTexture(materialOffset + 1).xyz,
+        readDataTexture(materialOffset + 2).xyz
+    );
+}
+
+vec3 calcFaceNormal(vec3 v0, vec3 v1, vec3 v2) {
+    vec3 v01 = v1 - v0;
+    vec3 v12 = v2 - v1;
+    return normalize(cross(v01, v12));
+}
 
 highp float rand_1to1(highp float x ) {
     // -1 -1
@@ -85,39 +155,44 @@ vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 ) 
 Intersection sceneIntersect(Ray ray) {
     // 判断光是否与模型相交
     vec3 nearestTUV = vec3(1e10, 0.0, 0.0);
+    int nearestMeshIdx = -1;
     int nearestFaceIdx = -1;
-    for (int faceIdx = 0; faceIdx < NUM_FACES_COUNT; faceIdx++) {
-        // 读出三角形
-        ivec3 indices = u_indices[faceIdx];
-        vec3 v0 = u_vertices[indices.x];
-        vec3 v1 = u_vertices[indices.y];
-        vec3 v2 = u_vertices[indices.z];
+    TriangleInfo nearestTri;
+    for (int meshIdx = 0; meshIdx < NUM_MESHES_COUNT; meshIdx++) {
+        int triangleCount = getMeshInfo(meshIdx).triangleCount;
+        for (int faceIdx = 0; faceIdx < triangleCount; faceIdx++) {
+            TriangleInfo tri = getTriangleVertices(meshIdx, faceIdx);
 
-        // 相交测试，找到最近的三角形
-        vec3 tuv = triIntersect(ray.origin, ray.direct, v0, v1, v2);
-        if (0.0 < tuv.x && tuv.x < nearestTUV.x) {
-            nearestTUV = tuv;
-            nearestFaceIdx = faceIdx;
+            // 相交测试，找到最近的三角形
+            vec3 tuv = triIntersect(ray.origin, ray.direct, tri.A, tri.B, tri.C);
+            if (0.0 < tuv.x && tuv.x < nearestTUV.x) {
+                nearestTUV = tuv;
+                nearestMeshIdx = meshIdx;
+                nearestFaceIdx = faceIdx;
+                nearestTri = tri;
+            }
         }
     }
+
     Intersection isect;
     isect.ray = ray;
     isect.nearestTUV = nearestTUV;
+    isect.nearestMeshIdx = nearestMeshIdx;
     isect.nearestFaceIdx = nearestFaceIdx;
+    isect.faceMaterialIdx = nearestMeshIdx == -1 ? -1 : getMeshInfo(nearestMeshIdx).materialId;
+    isect.faceNormal = nearestMeshIdx == -1 ? vec3(0.0) : calcFaceNormal(nearestTri.A, nearestTri.B, nearestTri.C);
     return isect;
 }
 
 vec3 sampleLight() {
     float p = rand(), pA = p * u_areaOfLightSum, pickingArea = 0.0;
-    for (int lightFaceReadIdx = 0; lightFaceReadIdx < NUM_LIGHT_FACE_COUNT; lightFaceReadIdx++) {
-        pickingArea += u_areaOfLightFace[lightFaceReadIdx];
+    for (int emitFaceReadIdx = 0; emitFaceReadIdx < NUM_LIGHT_FACE_COUNT; emitFaceReadIdx++) {
+        TriangleInfo tri = getEmitTriangle(emitFaceReadIdx);
+        pickingArea += tri.area;
         if (pA <= pickingArea){
-            int lightFaceIdx = u_lightFaceIdx[lightFaceReadIdx];
-
-            ivec3 indices = u_indices[lightFaceIdx];
-            vec3 v0 = u_vertices[indices.x];
-            vec3 v1 = u_vertices[indices.y];
-            vec3 v2 = u_vertices[indices.z];
+            vec3 v0 = tri.A;
+            vec3 v1 = tri.B;
+            vec3 v2 = tri.C;
             float a = rand(), b = rand();
             // TODO optimise
             if (1.0 <= a + b) {
@@ -140,7 +215,8 @@ vec3 toWorld(vec3 local, vec3 N) {
 }
 
 vec3 sampleHalfHemisphere(vec3 wi, vec3 N, int materialIdx) {
-    int materialType = u_material_type[materialIdx];
+    MaterialInfo material = getMaterialInfo(materialIdx);
+    int materialType = material.type;
 
     if (materialType == 0) {
         float r1 = rand(), r2 = rand();
@@ -157,7 +233,7 @@ vec3 sampleHalfHemisphere(vec3 wi, vec3 N, int materialIdx) {
         // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
         float r1 = rand(), r2 = rand();
 
-        float roughness = u_material_roughness[materialIdx];
+        float roughness = material.roughness;
 
         float a = roughness*roughness;
         float phi = 2.0 * M_PI * r1;
@@ -206,8 +282,9 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
 }
 
 vec3 eval(vec3 wi, vec3 wo, vec3 N, int materialIdx) {
-    int materialType = u_material_type[materialIdx];
-    vec3 kd = u_material_colors[materialIdx];
+    MaterialInfo material = getMaterialInfo(materialIdx);
+    int materialType = material.type;
+    vec3 kd = material.albedo;
     if (materialType == 0) {
         // lambert 漫反射
         return step(0.0, dot(wo, N)) * kd / M_PI;
@@ -221,8 +298,8 @@ vec3 eval(vec3 wi, vec3 wo, vec3 N, int materialIdx) {
         vec3 h = normalize(wi + wo);
         float NdotH = max(dot(N, h), 0.0);
 
-        float roughness = u_material_roughness[materialIdx];
-        float metallic = u_material_metallic[materialIdx];
+        float roughness = material.roughness;
+        float metallic = material.metallic;
 
         vec3 F0 = mix(vec3(0.04), kd, metallic);
         vec3 F  = fresnelSchlickRoughness(max(dot(h, wo), 0.0), F0, roughness);
@@ -236,17 +313,19 @@ vec3 eval(vec3 wi, vec3 wo, vec3 N, int materialIdx) {
 }
 
 float pdf(vec3 wi, vec3 wo, vec3 N, int materialIdx){
-    int materialType = u_material_type[materialIdx];
-
     if (dot(wo, N) <= 0.0) {
         return 0.0;
     }
+
+    MaterialInfo material = getMaterialInfo(materialIdx);
+    int materialType = material.type;
+
     if (materialType == 0) {
         // uniform sample probability 1 / (2 * PI)
         return 0.5 / M_PI;
     } else {
         // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
-        float roughness = u_material_roughness[materialIdx];
+        float roughness = material.roughness;
 
         vec3 h = normalize(wi + wo);
         float NdotH = max(dot(N, h), 0.0);
@@ -276,8 +355,10 @@ vec3 castRay(Ray ray) {
             break;
         }
         // 如果是光源，则直接显示灯光颜色
-        int materialIdx = u_face_material_ids[nearestFaceIdx];
-        vec3 emit = u_material_emits[materialIdx];
+        int materialIdx = camRayIsect.faceMaterialIdx;
+        MaterialInfo material = getMaterialInfo(materialIdx);
+
+        vec3 emit = material.emitIntensity;
         if (0.0 < emit.x) {
             acc += scale * emit;
             break;
@@ -287,7 +368,7 @@ vec3 castRay(Ray ray) {
         vec3 lDir;
         vec3 P = ray.origin + ray.direct * camRayIsect.nearestTUV.x;
         vec3 wo = -ray.direct;
-        vec3 N = u_face_normals[nearestFaceIdx];
+        vec3 N = camRayIsect.faceNormal;
 
         vec3 EP = sampleLight(); // 在光源上采样点
         vec3 shadowRayOrigin = P + N * 0.0003;
@@ -296,15 +377,17 @@ vec3 castRay(Ray ray) {
 
         if (0 <= shadowRayIsect.nearestFaceIdx) {
             // 如果直接碰到光源，则计算 brdf
-            int maskMaterialIdx = u_face_material_ids[shadowRayIsect.nearestFaceIdx];
-            vec3 emit = u_material_emits[maskMaterialIdx];
+            int maskMaterialIdx = shadowRayIsect.faceMaterialIdx;
+            MaterialInfo maskMaterial = getMaterialInfo(maskMaterialIdx);
+
+            vec3 emit = maskMaterial.emitIntensity;
 
             if (0.0 < emit.r) {
                 vec3 wsPreNorm = EP - P;
                 vec3 ws = normalize(wsPreNorm);
                 vec3 brdf = eval(ws, wo, N, materialIdx);
                 float wsDotN = dot(ws, N);
-                vec3 Ns = u_face_normals[shadowRayIsect.nearestFaceIdx];
+                vec3 Ns = shadowRayIsect.faceNormal;
                 float negWsDotNs = dot(-ws, Ns);
                 float d = dot(wsPreNorm, wsPreNorm);
                 float pdfOfLight = 1.0 / u_areaOfLightSum;
@@ -325,7 +408,7 @@ vec3 castRay(Ray ray) {
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 
-        if (ray2Isect.nearestFaceIdx == -1 || 0.0 < u_material_emits[u_face_material_ids[ray2Isect.nearestFaceIdx]].r) {
+        if (ray2Isect.nearestFaceIdx == -1 || 0.0 < getMaterialInfo(ray2Isect.faceMaterialIdx).emitIntensity.x) {
             break;
         }
 
