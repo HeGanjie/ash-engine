@@ -428,7 +428,13 @@ void main() {
     glFragColor = vec4(0.0, 0.0, 0.0, 1.0);
 
     Ray primaryRay = Ray(u_eye_pos, normalize(v_pos_world - u_eye_pos));
-    glFragColor.rgb = castRay(primaryRay);
+    vec3 color = castRay(primaryRay);
+    // Reinhard色调映射
+    color = color / (color + vec3(1.0));
+    // Gamma 校正
+    color = pow(color, vec3(1.0/2.2));
+
+    glFragColor.rgb = color;
 
     // https://zhuanlan.zhihu.com/p/58692781 滤波算法：Sn = Sn-1 * (n-1)/n + Cn / n
     if (u_renderCount != 0) {

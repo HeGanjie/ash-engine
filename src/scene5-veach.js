@@ -78,7 +78,7 @@ export default async function genScene() {
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
 
-  const sphereGeometry8 = fromStackGlPrimitive(sphere(1, {segments: 8}))
+  const simplifySphereGeometry = fromStackGlPrimitive(sphere(1, {segments: 4}))
 
   let meshes = [
     new Mesh({
@@ -88,35 +88,35 @@ export default async function genScene() {
     }),
     new Mesh({
       name: 'light800',
-      geometry: sphereGeometry8,
+      geometry: simplifySphereGeometry,
       material: light800,
       position: vec3.fromValues(10, 10, 4),
       scale: vec3.fromValues(0.5, 0.5, 0.5)
     }),
     new Mesh({
       name: 'light902',
-      geometry: sphereGeometry8,
+      geometry: simplifySphereGeometry,
       material: light902,
       position: vec3.fromValues(-3.75, 0, 0),
       scale: vec3.fromValues(0.03333, 0.03333, 0.03333)
     }),
     new Mesh({
       name: 'light100',
-      geometry: sphereGeometry8,
+      geometry: simplifySphereGeometry,
       material: light100,
       position: vec3.fromValues(-1.25, 0, 0),
       scale: vec3.fromValues(0.1, 0.1, 0.1)
     }),
     new Mesh({
       name: 'light11',
-      geometry: sphereGeometry8,
+      geometry: simplifySphereGeometry,
       material: light11,
       position: vec3.fromValues(1.25, 0, 0),
       scale: vec3.fromValues(0.3, 0.3, 0.3)
     }),
     new Mesh({
       name: 'light1',
-      geometry: Geometry.SphereGeometry,
+      geometry: simplifySphereGeometry,
       material: light1,
       position: vec3.fromValues(3.75, 0, 0),
       scale: vec3.fromValues(0.9, 0.9, 0.9)

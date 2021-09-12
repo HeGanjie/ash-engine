@@ -64,13 +64,25 @@ export function fromStackGlPrimitive(obj) {
   // positions: [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
   // uvs: [[0, 0], [1, 0], [1, 1], [0, 1]]
   const {positions, cells, uvs, normals} = obj
+
+  let faceNormals = cells.map(cell => {
+    let [v0, v1, v2] = cell.map(vi => positions[vi])
+    let v01 = vec3.subtract(vec3.create(), v1, v0)
+    let v12 = vec3.subtract(vec3.create(), v2, v1)
+    let normal = vec3.cross(vec3.create(), v01, v12)
+    vec3.normalize(normal, normal)
+    return normal
+  })
+
   return new Geometry({
     vertices: positions.map(p => vec3.fromValues(...p)),
     normals: normals.map(n => vec3.fromValues(...n)),
     uvs: uvs.map(uv => vec2.fromValues(...uv)),
-    faces: cells.map(c => {
+    faces: cells.map((c, ci) => {
       return {
-        data: c.map(vi => ({V: vi, N: vi, T: vi}))
+        data: c.map(vi => ({V: vi, N: vi, T: vi})),
+        normal: faceNormals[ci],
+        area: calcAreaOfTriangle(...c.map(vi => positions[vi]))
       }
     })
   })

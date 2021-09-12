@@ -29,7 +29,7 @@ shell.on("init", async () => {
   if (!ctx) {
     throw new Error('Not support webgl2')
   }
-  let watchScene = (window.location.search || '').match(/scene=(\d+)/)?.[1] || 3
+  let watchScene = (window.location.search || '').match(/scene=(\d+)/)?.[1] || 4
   let sceneGenFn = [genScene1, genScene2, genScene3, genScene4, genScene5][watchScene]
   sceneCtrl = await sceneGenFn()
 
