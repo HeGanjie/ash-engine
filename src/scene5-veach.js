@@ -155,6 +155,7 @@ export default async function genScene() {
   camera.position = vec3.fromValues(0, 2, 15);
   camera.target = vec3.fromValues(0, -2, 2.5);
   camera.fov = 28 * Math.PI / 180
+  camera.exposure = 0.1
 
   const startAt = Date.now()
   return {

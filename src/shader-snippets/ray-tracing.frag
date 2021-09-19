@@ -17,6 +17,7 @@ uniform sampler2D u_data_texture;
 uniform int u_data_texture_width;
 uniform int u_renderCount;
 uniform float u_time;
+uniform float u_exposure;
 
 // dataImageMeta: meshCount, meshMetaOffset, bvhNodeCount,bvhNodeOffset；
 //                materialCount, materialOffset, emitTriangleCount, emitTriangleOffset；vec4 * 2
@@ -149,6 +150,11 @@ vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 ) 
 
     if( u<0.0 || v<0.0 || (u+v)>1.0 ) t = -1.0;
     return vec3( t, u, v );
+}
+
+float powerHeuristic(float f, float g) {
+//    return f / (f + g + 1e-6);
+    return (f * f) / (f * f + g * g);
 }
 
 // TODO 实现 bvh
@@ -336,33 +342,33 @@ float pdf(vec3 wi, vec3 wo, vec3 N, int materialIdx){
     }
 }
 
+// 递归改循环
+// A + b * x
+// A + b * (C + d * x) -> A+bC + bd*x
+// ...
+
+// NEE MIS 参考 https://zhuanlan.zhihu.com/p/360420413
+
 // 计算 P 点往 wo 方向发出了多少光
 vec3 castRay(Ray ray) {
     vec3 acc = vec3(0.0, 0.0, 0.0);
     vec3 scale = vec3(1.0, 1.0, 1.0);
-    // A + b * x
-    // A + b * (C + d * x) -> A+bC + bd*x
-    // A + b * (C + d * (E + f * x)) -> A + bC + b*(d * (E + f * x)) -> A+bC+bdE + bdf*x
-    // ...
+    float LeWeight = 1.0;
+    Intersection camRayIsect = sceneIntersect(ray);
 
     int cnt = 21;// 避免死循环
     while (cnt-- > 0) {
         // 判断光是否与模型相交
-        Intersection camRayIsect = sceneIntersect(ray);
         int nearestFaceIdx = camRayIsect.nearestFaceIdx;
 
         if (-1 == nearestFaceIdx) {
             break;
         }
-        // 如果是光源，则直接显示灯光颜色
+        // 光源/发光物
         int materialIdx = camRayIsect.faceMaterialIdx;
         MaterialInfo material = getMaterialInfo(materialIdx);
-
         vec3 emit = material.emitIntensity;
-        if (0.0 < emit.x) {
-            acc += scale * emit;
-            break;
-        }
+        acc += scale * LeWeight * emit;
 
         // 计算直接光照
         vec3 lDir;
@@ -383,17 +389,24 @@ vec3 castRay(Ray ray) {
             vec3 emit = maskMaterial.emitIntensity;
 
             if (0.0 < emit.r) {
-                vec3 wsPreNorm = EP - P;
-                vec3 ws = normalize(wsPreNorm);
-                vec3 brdf = eval(ws, wo, N, materialIdx);
-                float wsDotN = dot(ws, N);
+                vec3 ws = shadowRay.direct;
                 vec3 Ns = shadowRayIsect.faceNormal;
                 float negWsDotNs = dot(-ws, Ns);
-                float d = dot(wsPreNorm, wsPreNorm);
-                float pdfOfLight = 1.0 / u_areaOfLightSum;
+                float dSquare = shadowRayIsect.nearestTUV.x * shadowRayIsect.nearestTUV.x;
 
+                // MIS pdf 度量统一 https://zhuanlan.zhihu.com/p/397068211
+                // https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#Shape::Pdf
+                // https://canvas.dartmouth.edu/courses/35073/files/folder/Slides?preview=5701930 102 页
+                float lightPdfArea = 1.0 / u_areaOfLightSum;
+                float lightPdfDw = lightPdfArea * dSquare / max(0.00001, negWsDotNs);
+                float scatteringPdf = pdf(ws, wo, N, materialIdx);
+                float w1 = powerHeuristic(lightPdfDw, scatteringPdf);
+
+                // https://www.bilibili.com/video/BV1X7411F744?p=16
                 // L_dir = L_i * f_r * cos_theta * cos_theta_x / |x-p|^2 / pdf_light
-                lDir = emit * brdf * max(0.0, wsDotN) * max(0.0, negWsDotNs) / d / pdfOfLight;
+                vec3 brdf = eval(ws, wo, N, materialIdx);
+                float wsDotN = dot(ws, N);
+                lDir = w1 * emit * brdf * max(0.0, wsDotN) * max(0.0, negWsDotNs) / dSquare / lightPdfArea;
             }
         }
 
@@ -408,15 +421,29 @@ vec3 castRay(Ray ray) {
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 
-        if (ray2Isect.nearestFaceIdx == -1 || 0.0 < getMaterialInfo(ray2Isect.faceMaterialIdx).emitIntensity.x) {
+        if (ray2Isect.nearestFaceIdx == -1) {
             break;
         }
 
         // L_indir = shade(q, wi) * eval(wo, wi, N) * dot(wi, N) / pdf(wo, wi, N) / RussianRoulette
-        float pdfVal = pdf(pwi, wo, N, materialIdx);
+        float scatteringPdf = pdf(pwi, wo, N, materialIdx);
 
-        vec3 nextScale = eval(pwi, wo, N, materialIdx) * max(0.0, dot(pwi, N)) / pdfVal / P_RR;
+        vec3 nextLe = getMaterialInfo(ray2Isect.faceMaterialIdx).emitIntensity;
+        if (0.0 < nextLe.x) {
+            // 碰到发光物体，计算 MIS 权重
+            vec3 ws = ray2.direct;
+            vec3 Ns = ray2Isect.faceNormal;
+            float negWsDotNs = dot(-ws, Ns);
+            float dSquare = ray2Isect.nearestTUV.x * ray2Isect.nearestTUV.x;
+
+            float lightPdfArea = 1.0 / u_areaOfLightSum;
+            float lightPdfDw = lightPdfArea * dSquare / max(0.00001, negWsDotNs);
+            LeWeight = powerHeuristic(scatteringPdf, lightPdfDw);
+        }
+
+        vec3 nextScale = eval(pwi, wo, N, materialIdx) * max(0.0, dot(pwi, N)) / scatteringPdf / P_RR;
         ray = ray2;
+        camRayIsect = ray2Isect;
         scale *= nextScale;
     }
     return acc;
@@ -429,10 +456,10 @@ void main() {
 
     Ray primaryRay = Ray(u_eye_pos, normalize(v_pos_world - u_eye_pos));
     vec3 color = castRay(primaryRay);
-    // Reinhard色调映射
-    color = color / (color + vec3(1.0));
+    // 色调映射
+//    color = vec3(1.0) - exp(-color * u_exposure);
     // Gamma 校正
-    color = pow(color, vec3(1.0/2.2));
+//    color = pow(color, vec3(1.0/2.2));
 
     glFragColor.rgb = color;
 

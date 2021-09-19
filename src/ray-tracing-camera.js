@@ -28,6 +28,7 @@ export class RayTracingCamera {
   prevPosition = this.position
   prevTarget = this.target
   beginTime = Date.now()
+  exposure = 1.0
 
   constructor() {
   }
@@ -264,6 +265,7 @@ export class RayTracingCamera {
     uniformDict.u_data_texture_width = this.dataTextureSize[0]
     uniformDict.u_renderCount = this.renderCount++
     uniformDict.u_time = (Date.now() - this.beginTime) / 1000
+    uniformDict.u_exposure = this.exposure
 
     setUniforms(this.rayTracingProgramInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.rayTracingProgramInfo.attribSetters, this.bufferInfo);
