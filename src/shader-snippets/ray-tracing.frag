@@ -43,6 +43,7 @@ struct Intersection {
     int nearestFaceIdx;
     int faceMaterialIdx;
     vec3 faceNormal;
+//    bool hitFront;
 };
 
 struct MeshInfo {
@@ -154,7 +155,8 @@ vec3 triIntersect( in vec3 ro, in vec3 rd, in vec3 v0, in vec3 v1, in vec3 v2 ) 
 
 float powerHeuristic(float f, float g) {
 //    return f / (f + g + 1e-6);
-    return (f * f) / (f * f + g * g);
+    float fSq = f * f;
+    return fSq / (fSq + g * g);
 }
 
 // TODO 实现 bvh
@@ -187,6 +189,7 @@ Intersection sceneIntersect(Ray ray) {
     isect.nearestFaceIdx = nearestFaceIdx;
     isect.faceMaterialIdx = nearestMeshIdx == -1 ? -1 : getMeshInfo(nearestMeshIdx).materialId;
     isect.faceNormal = nearestMeshIdx == -1 ? vec3(0.0) : calcFaceNormal(nearestTri.A, nearestTri.B, nearestTri.C);
+//    isect.hitFront = nearestMeshIdx == -1 ? false : dot(ray.direct, isect.faceNormal) < 0.0;
     return isect;
 }
 
@@ -220,7 +223,20 @@ vec3 toWorld(vec3 local, vec3 N) {
     return local.x * Nb + local.y * N + local.z * Nt;
 }
 
-vec3 sampleHalfHemisphere(vec3 wi, vec3 N, int materialIdx) {
+#define TWO_PI 6.283185307
+#define INV_PI 0.31830988618
+
+vec3 SampleHemisphereCos(out float pdf) {
+    float r0 = rand(), r1 = rand();
+    float z = sqrt(1.0 - r0);
+    float phi = r1 * TWO_PI;
+    float sinTheta = sqrt(r0);
+    vec3 dir = vec3(sinTheta * cos(phi), sinTheta * sin(phi), z);
+    pdf = z * INV_PI;
+    return dir;
+}
+
+vec3 sampleHemisphere(vec3 wi, vec3 N, int materialIdx) {
     MaterialInfo material = getMaterialInfo(materialIdx);
     int materialType = material.type;
 
@@ -371,7 +387,7 @@ vec3 castRay(Ray ray) {
         acc += scale * LeWeight * emit;
 
         // 计算直接光照
-        vec3 lDir;
+        vec3 lDir = vec3(0.0);
         vec3 P = ray.origin + ray.direct * camRayIsect.nearestTUV.x;
         vec3 wo = -ray.direct;
         vec3 N = camRayIsect.faceNormal;
@@ -398,7 +414,7 @@ vec3 castRay(Ray ray) {
                 // https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#Shape::Pdf
                 // https://canvas.dartmouth.edu/courses/35073/files/folder/Slides?preview=5701930 102 页
                 float lightPdfArea = 1.0 / u_areaOfLightSum;
-                float lightPdfDw = lightPdfArea * dSquare / max(0.00001, negWsDotNs);
+                float lightPdfDw = lightPdfArea * dSquare / abs(negWsDotNs);
                 float scatteringPdf = pdf(ws, wo, N, materialIdx);
                 float w1 = powerHeuristic(lightPdfDw, scatteringPdf);
 
@@ -417,7 +433,9 @@ vec3 castRay(Ray ray) {
         if (P_RR < pRR) {
             break;
         }
-        vec3 pwi = sampleHalfHemisphere(wo, N, materialIdx); // p 点输入光线的立体角
+        vec3 pwi = sampleHemisphere(wo, N, materialIdx); // p 点输入光线的立体角
+//        float scatteringPdf;
+//        vec3 pwi = SampleHemisphereCos(scatteringPdf);
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 
@@ -428,7 +446,8 @@ vec3 castRay(Ray ray) {
         // L_indir = shade(q, wi) * eval(wo, wi, N) * dot(wi, N) / pdf(wo, wi, N) / RussianRoulette
         float scatteringPdf = pdf(pwi, wo, N, materialIdx);
 
-        vec3 nextLe = getMaterialInfo(ray2Isect.faceMaterialIdx).emitIntensity;
+        MaterialInfo ray2IsectMatInfo = getMaterialInfo(ray2Isect.faceMaterialIdx);
+        vec3 nextLe = ray2IsectMatInfo.emitIntensity;
         if (0.0 < nextLe.x) {
             // 碰到发光物体，计算 MIS 权重
             vec3 ws = ray2.direct;
@@ -437,8 +456,10 @@ vec3 castRay(Ray ray) {
             float dSquare = ray2Isect.nearestTUV.x * ray2Isect.nearestTUV.x;
 
             float lightPdfArea = 1.0 / u_areaOfLightSum;
-            float lightPdfDw = lightPdfArea * dSquare / max(0.00001, negWsDotNs);
+            float lightPdfDw = lightPdfArea * dSquare / abs(negWsDotNs);
             LeWeight = powerHeuristic(scatteringPdf, lightPdfDw);
+        } else {
+            LeWeight = 1.0;
         }
 
         vec3 nextScale = eval(pwi, wo, N, materialIdx) * max(0.0, dot(pwi, N)) / scatteringPdf / P_RR;
