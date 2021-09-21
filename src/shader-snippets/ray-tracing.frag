@@ -358,6 +358,8 @@ float pdf(vec3 wi, vec3 wo, vec3 N, int materialIdx){
     }
 }
 
+#define MIS_ON (1==1)
+
 // 递归改循环
 // A + b * x
 // A + b * (C + d * x) -> A+bC + bd*x
@@ -410,19 +412,24 @@ vec3 castRay(Ray ray) {
                 float negWsDotNs = dot(-ws, Ns);
                 float dSquare = shadowRayIsect.nearestTUV.x * shadowRayIsect.nearestTUV.x;
 
-                // MIS pdf 度量统一 https://zhuanlan.zhihu.com/p/397068211
-                // https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#Shape::Pdf
-                // https://canvas.dartmouth.edu/courses/35073/files/folder/Slides?preview=5701930 102 页
                 float lightPdfArea = 1.0 / u_areaOfLightSum;
-                float lightPdfDw = lightPdfArea * dSquare / abs(negWsDotNs);
-                float scatteringPdf = pdf(ws, wo, N, materialIdx);
-                float w1 = powerHeuristic(lightPdfDw, scatteringPdf);
 
                 // https://www.bilibili.com/video/BV1X7411F744?p=16
                 // L_dir = L_i * f_r * cos_theta * cos_theta_x / |x-p|^2 / pdf_light
                 vec3 brdf = eval(ws, wo, N, materialIdx);
                 float wsDotN = dot(ws, N);
-                lDir = w1 * emit * brdf * max(0.0, wsDotN) * max(0.0, negWsDotNs) / dSquare / lightPdfArea;
+                lDir = emit * brdf * max(0.0, wsDotN) * max(0.0, negWsDotNs) / dSquare / lightPdfArea;
+
+                #if MIS_ON
+                // MIS pdf 度量统一 https://zhuanlan.zhihu.com/p/397068211
+                // https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#Shape::Pdf
+                // https://canvas.dartmouth.edu/courses/35073/files/folder/Slides?preview=5701930 102 页
+                float lightPdfDw = lightPdfArea * dSquare / abs(negWsDotNs);
+                float scatteringPdf = pdf(ws, wo, N, materialIdx);
+                float w1 = powerHeuristic(lightPdfDw, scatteringPdf);
+
+                lDir *= w1;
+                #endif
             }
         }
 
@@ -448,6 +455,7 @@ vec3 castRay(Ray ray) {
 
         MaterialInfo ray2IsectMatInfo = getMaterialInfo(ray2Isect.faceMaterialIdx);
         vec3 nextLe = ray2IsectMatInfo.emitIntensity;
+        #if MIS_ON
         if (0.0 < nextLe.x) {
             // 碰到发光物体，计算 MIS 权重
             vec3 ws = ray2.direct;
@@ -461,6 +469,7 @@ vec3 castRay(Ray ray) {
         } else {
             LeWeight = 1.0;
         }
+        #endif
 
         vec3 nextScale = eval(pwi, wo, N, materialIdx) * max(0.0, dot(pwi, N)) / scatteringPdf / P_RR;
         ray = ray2;
