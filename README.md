@@ -23,12 +23,14 @@
  - [ ] Pbr IBL (https://learnopengl.com/PBR/IBL/Diffuse-irradiance)
  - [ ] Using .Obj loader
  - [ ] Deferred rendering (https://learnopengl.com/Advanced-Lighting/Deferred-Shading)
- - [x] Realtime path tracing (https://zhuanlan.zhihu.com/p/58692781)
+ - [x] Progressive offline render (https://zhuanlan.zhihu.com/p/58692781)
  - [x] Important sampling
  - [x] Data Texture
- - [ ] Accelerate structure: BVH
- - [x] Multiple important sampling
- - [ ] Cosine weighted hemisphere sampling MC
+ - [ ] Accelerate structure: BVH (GAMES 202)
+ - [x] Multiple important sampling (GAMES 202 final project、https://zhuanlan.zhihu.com/p/360420413)
+ - [ ] Cosine weighted hemisphere sampling MC (https://zhuanlan.zhihu.com/p/360420413)
+ - [ ] Realtime ray tracing (GAMES 202)
+ - [ ] Screen space reflection (GAMES 202)
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
  - [ ] PCF, PCSS, VSM, MSM (GAMES 202)
  - [ ] Distance Field shadow (https://zhuanlan.zhihu.com/p/50128840)
