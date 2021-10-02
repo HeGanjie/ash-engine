@@ -27,7 +27,7 @@
  - [x] Important sampling
  - [x] Data Texture
  - [ ] Accelerate structure: BVH
- - [ ] Multiple important sampling
+ - [x] Multiple important sampling
  - [ ] Cosine weighted hemisphere sampling MC
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
  - [ ] PCF, PCSS, VSM, MSM (GAMES 202)

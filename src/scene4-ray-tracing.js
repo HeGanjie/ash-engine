@@ -77,8 +77,7 @@ export default async function genScene() {
     new Mesh({
       name: 'light',
       geometry: lightGeometry,
-      material: light,
-      position: vec3.fromValues(0, 0.0997, 0) // 解决 MIS 黑点问题。。
+      material: light
     })
   ]
   /*let distantLight = new DistantLight(

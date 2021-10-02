@@ -43,7 +43,7 @@ struct Intersection {
     int nearestFaceIdx;
     int faceMaterialIdx;
     vec3 faceNormal;
-//    bool hitFront;
+    bool hitFront;
 };
 
 struct MeshInfo {
@@ -189,7 +189,7 @@ Intersection sceneIntersect(Ray ray) {
     isect.nearestFaceIdx = nearestFaceIdx;
     isect.faceMaterialIdx = nearestMeshIdx == -1 ? -1 : getMeshInfo(nearestMeshIdx).materialId;
     isect.faceNormal = nearestMeshIdx == -1 ? vec3(0.0) : calcFaceNormal(nearestTri.A, nearestTri.B, nearestTri.C);
-//    isect.hitFront = nearestMeshIdx == -1 ? false : dot(ray.direct, isect.faceNormal) < 0.0;
+    isect.hitFront = nearestMeshIdx == -1 ? false : dot(ray.direct, isect.faceNormal) < 0.0;
     return isect;
 }
 
@@ -399,7 +399,7 @@ vec3 castRay(Ray ray) {
         Ray shadowRay = Ray(shadowRayOrigin, normalize(EP - shadowRayOrigin));
         Intersection shadowRayIsect = sceneIntersect(shadowRay);
 
-        if (0 <= shadowRayIsect.nearestFaceIdx) {
+        if (0 <= shadowRayIsect.nearestFaceIdx && shadowRayIsect.hitFront) {
             // 如果直接碰到光源，则计算 brdf
             int maskMaterialIdx = shadowRayIsect.faceMaterialIdx;
             MaterialInfo maskMaterial = getMaterialInfo(maskMaterialIdx);
@@ -446,7 +446,7 @@ vec3 castRay(Ray ray) {
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 
-        if (ray2Isect.nearestFaceIdx == -1) {
+        if (ray2Isect.nearestFaceIdx == -1 || !ray2Isect.hitFront) {
             break;
         }
 
