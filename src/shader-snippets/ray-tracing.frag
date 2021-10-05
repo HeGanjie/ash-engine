@@ -2,6 +2,7 @@
 precision mediump float;
 precision mediump int;
 
+#define EPSILON 1e-5
 #define M_PI 3.141592653589793
 #define P_RR 0.8
 
@@ -68,6 +69,19 @@ struct MaterialInfo {
     vec3 emitIntensity;
 };
 
+struct Bounds3 {
+    vec3 pMin;
+    vec3 pMax;
+};
+
+struct BVHNode {
+    Bounds3 bBox;
+    int leftNodeIdx;
+    int rightNodeIdx;
+    int meshIdx;
+    int faceIdx;
+};
+
 vec4 readDataTexture(int offset) {
     return texelFetch(u_data_texture, ivec2(offset % u_data_texture_width, offset / u_data_texture_width), 0);
 }
@@ -107,6 +121,37 @@ MaterialInfo getMaterialInfo(int materialId) {
         readDataTexture(materialOffset + 1).xyz,
         readDataTexture(materialOffset + 2).xyz
     );
+}
+
+BVHNode getBVHNode(int bvhNodeIdx) {
+    int bvhNodeOffset = int(readDataTexture(0).w) + bvhNodeIdx * 3;
+    vec4 bvhInfo0 = readDataTexture(bvhNodeOffset);
+    vec4 bvhInfo1 = readDataTexture(bvhNodeOffset + 1);
+    vec4 bvhInfo2 = readDataTexture(bvhNodeOffset + 2);
+
+    return BVHNode(
+        Bounds3(bvhInfo0.xyz, bvhInfo1.xyz),
+        int(bvhInfo2.x),
+        int(bvhInfo2.y),
+        int(bvhInfo2.z),
+        int(bvhInfo2.w)
+    );
+}
+
+bool intersectP(Bounds3 bb, Ray ray) {
+    vec3 direction_inv = 1.0 / ray.direct;
+    vec3 tMin = (bb.pMin - ray.origin) * direction_inv;
+    vec3 tMax = (bb.pMax - ray.origin) * direction_inv;
+
+    vec3 tNear = min(tMin, tMax);
+    vec3 tFar = max(tMin, tMax);
+
+    float tExit = min(tFar.x, min(tFar.y, tFar.z));
+    if (tExit < 0.0) {
+        return false;
+    }
+    float tEnter = max(tNear.x, max(tNear.y, tNear.z));
+    return tEnter <= tExit;
 }
 
 vec3 calcFaceNormal(vec3 v0, vec3 v1, vec3 v2) {
@@ -159,26 +204,41 @@ float powerHeuristic(float f, float g) {
     return fSq / (fSq + g * g);
 }
 
-// TODO 实现 bvh
 Intersection sceneIntersect(Ray ray) {
     // 判断光是否与模型相交
     vec3 nearestTUV = vec3(1e10, 0.0, 0.0);
     int nearestMeshIdx = -1;
     int nearestFaceIdx = -1;
     TriangleInfo nearestTri;
-    for (int meshIdx = 0; meshIdx < NUM_MESHES_COUNT; meshIdx++) {
-        int triangleCount = getMeshInfo(meshIdx).triangleCount;
-        for (int faceIdx = 0; faceIdx < triangleCount; faceIdx++) {
-            TriangleInfo tri = getTriangleVertices(meshIdx, faceIdx);
 
+    // bvh 树遍历
+    int visitingStack[MAX_BVH_TREE_DEPTH];
+    int stackPos = 0;
+    visitingStack[stackPos] = 0;
+
+    int cnt = 0;
+    while (cnt++ < MAX_BVH_NODE_COUNT && 0 <= stackPos) {
+        BVHNode currNode = getBVHNode(visitingStack[stackPos]);
+        if (!intersectP(currNode.bBox, ray)) {
+            stackPos--;
+            continue;
+        }
+        if (currNode.faceIdx >= 0) {
+            TriangleInfo tri = getTriangleVertices(currNode.meshIdx, currNode.faceIdx);
             // 相交测试，找到最近的三角形
             vec3 tuv = triIntersect(ray.origin, ray.direct, tri.A, tri.B, tri.C);
             if (0.0 < tuv.x && tuv.x < nearestTUV.x) {
                 nearestTUV = tuv;
-                nearestMeshIdx = meshIdx;
-                nearestFaceIdx = faceIdx;
+                nearestMeshIdx = currNode.meshIdx;
+                nearestFaceIdx = currNode.faceIdx;
                 nearestTri = tri;
             }
+            // 回到上一层
+            stackPos--;
+        } else {
+            // 回到上一层，下钻两层
+            visitingStack[stackPos] = currNode.rightNodeIdx;
+            visitingStack[++stackPos] = currNode.leftNodeIdx;
         }
     }
 
@@ -203,7 +263,6 @@ vec3 sampleLight() {
             vec3 v1 = tri.B;
             vec3 v2 = tri.C;
             float a = rand(), b = rand();
-            // TODO optimise
             if (1.0 <= a + b) {
                 a = 1.0 - a;
                 b = 1.0 - b;
@@ -486,7 +545,7 @@ void main() {
 
     Ray primaryRay = Ray(u_eye_pos, normalize(v_pos_world - u_eye_pos));
     vec3 color = castRay(primaryRay);
-    // 色调映射
+    // TODO 色调映射
 //    color = vec3(1.0) - exp(-color * u_exposure);
     // Gamma 校正
 //    color = pow(color, vec3(1.0/2.2));

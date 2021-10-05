@@ -1,5 +1,5 @@
 import {mat4, quat, vec2, vec3} from 'gl-matrix'
-import _ from 'lodash'
+import _, {cloneDeep, every, filter} from 'lodash'
 import earcut from 'earcut'
 import {DistantLight} from './distant-light'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
@@ -8,6 +8,7 @@ import sphere from 'primitive-sphere'
 import plane from 'primitive-plane'
 import cube from 'primitive-cube'
 import {calcAreaOfTriangle} from "./utils";
+import {calcAABBox, flattenBvhNode, recursiveBuild} from "./bvh";
 
 window.earcut = earcut
 window.vec3 = vec3
@@ -139,7 +140,7 @@ export class Geometry {
         const uvs = f.data.map(d => this.uvs[d.T]);
         let [uv0, uv1, uv2] = uvs
 
-        f.tangent = _.every(uvs, uv => uv[0] === 0 && uv[1] === 0)
+        f.tangent = every(uvs, uv => uv[0] === 0 && uv[1] === 0)
           ? vec3.fromValues(0, 0, 0)
           : calcTangent(v0, v1, v2, uv0, uv1, uv2)
         return f.tangent
@@ -154,6 +155,7 @@ export class Geometry {
   }
 
   transform(rotate, move = vec3.fromValues(0, 0, 0), scale = vec3.fromValues(1, 1, 1)) {
+    // TODO 优化性能
     let qRot = quat.fromEuler(quat.create(), ...rotate)
     let mTransform = mat4.fromRotationTranslationScale(mat4.create(), qRot, move, scale);
     let mTransformForNormal = mat4.create()
@@ -164,7 +166,7 @@ export class Geometry {
         const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
         return vec3.normalize(n0, n0)
       }),
-      faces: _.cloneDeep(this.faces),
+      faces: cloneDeep(this.faces),
       uvs: this.uvs,
       tangents: this.tangents.map(dir => {
         const n0 = vec3.transformMat4(vec3.create(), dir, mTransformForNormal)
@@ -175,7 +177,7 @@ export class Geometry {
 
   static parseObj(objFileContent) {
     const lines = objFileContent.split(/\s*\r?\n/);
-    let positions = _.filter(lines, line => line[0] === 'v')
+    let positions = filter(lines, line => line[0] === 'v')
       .map(line => {
         let m = line.match(/^v\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/)
         if (!m) {
@@ -183,7 +185,7 @@ export class Geometry {
         }
         return [+m[1], +m[2], +m[3]]
       })
-    let cells = _.filter(lines, line => line[0] === 'f')
+    let cells = filter(lines, line => line[0] === 'f')
       .map(line => {
         let m = line.match(/^f\s+(\d+)\s+(\d+)\s+(\d+)\s*$/)
         if (!m) {
@@ -361,15 +363,33 @@ export class PbrMaterial {
 
 
 export class Mesh {
-  position = vec3.create();
-  rotation = vec3.create();
+  position = vec3.fromValues(0, 0, 0);
+  rotation = vec3.fromValues(0, 0, 0);
   scale = vec3.fromValues(1, 1, 1);
   geometry = null;
   material = null;
   name = null;
+  bvhRootNode = null
 
   constructor(opts) {
     Object.assign(this, opts)
+  }
+
+  getTransformedGeometry() {
+    // 转换为世界坐标
+    return this.geometry.transform(this.rotation, this.position, this.scale)
+  }
+
+  buildBvh(meshIndex) {
+    const {faces, vertices} = this.getTransformedGeometry();
+    this.bvhRootNode = recursiveBuild(faces.map((face, fIdx) => {
+      const [v0, v1, v2] = face.data.map(({V}) => vertices[V]);
+      return {
+        meshIndex,
+        faceIndex: fIdx,
+        bounds3: calcAABBox(v0, v1, v2)
+      }
+    }))
   }
 }
 
@@ -377,6 +397,8 @@ export class Scene {
   meshes = null;
   lights = null;
   mainTexture = null;
+  bvhRootNode = null
+  _flattenBvhInfo = null
 
   constructor(meshes, lights) {
     this.meshes = meshes;
@@ -391,6 +413,25 @@ export class Scene {
       mesh.material.id = existedMaterials.length
       existedMaterials.push(mesh.material)
     })
+
+    // bvh
+    meshes.forEach((mesh, idx) => mesh.buildBvh(idx))
+    this.bvhRootNode = recursiveBuild(meshes.map((mesh, idx) => {
+      return {
+        meshIndex: idx,
+        bounds3: mesh.bvhRootNode.bounds3,
+        preFlatNode: mesh.bvhRootNode
+      }
+    }))
+  }
+
+  getFlattenBvhInfo() {
+    // TODO 如果重新生成 BVH，则需要清楚这个缓存
+    if (this._flattenBvhInfo) {
+      return this._flattenBvhInfo
+    }
+    this._flattenBvhInfo = flattenBvhNode(this.bvhRootNode);
+    return this._flattenBvhInfo
   }
 
   async genTexcoordsForMainTexture() {

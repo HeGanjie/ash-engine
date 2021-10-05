@@ -1,4 +1,4 @@
-import {mat4, quat, vec2, vec3} from "gl-matrix";
+import {mat4, vec2, vec3} from "gl-matrix";
 import {buildShader, SHADER_IMPLEMENT_STRATEGY} from "./shader-impl";
 import {
   createBufferInfoFromArrays,
@@ -7,7 +7,8 @@ import {
   setBuffersAndAttributes,
   setUniforms
 } from "./webgl-utils";
-import {flatMap, flatten, isEqual, orderBy, sum, uniqBy, range} from "lodash";
+import {flatMap, flatten, isEqual, orderBy, range, sum, uniqBy} from "lodash";
+import {flattenBvhNode, recurCalcDepth} from "./bvh";
 
 export class RayTracingCamera {
   position = vec3.create();
@@ -50,31 +51,22 @@ export class RayTracingCamera {
 
     const quatTmp = quat.create();
     const mat4Tmp = mat4.create();
-    const mat4Tmp2 = mat4.create()
-    const vec3Tmp = vec3.create();
     const meshDataArr = scene.meshes.map(m => {
-      const {rotation, position, scale, geometry} = m;
+      const {rotation, position, scale} = m;
       const qRot = quat.fromEuler(quatTmp, ...rotation);
-      const {faces, vertices, uvs, normals} = geometry
+      const {faces, vertices, uvs, normals} = m.getTransformedGeometry()
       const modelMat = mat4.fromRotationTranslationScale(mat4Tmp, qRot, position, scale);
-      const mTransformForNormal = mat4.transpose(mat4Tmp2, mat4.invert(mat4Tmp2, modelMat))
 
       return [
-        ...modelMat,
+        ...modelMat, // TODO 没用上，去掉？
         ...flatMap(faces, f => {
           const indices = f.data;
           return [
             // vec4 point * 3
-            ...flatMap(indices, d => {
-              const worldPoint = vec3.transformMat4(vec3Tmp, vertices[d.V], modelMat)
-              return [...worldPoint, 1];
-            }),
+            ...flatMap(indices, d => [...vertices[d.V], 1]),
             ...flatMap(indices, d => [...uvs[d.T], 0, 0]), // vec4 uv * 3
             // vec4 normals * 3
-            ...flatMap(indices, d => {
-              const worldNormal = vec3.transformMat4(vec3Tmp, normals[d.N], mTransformForNormal)
-              return [...worldNormal, 1];
-            })
+            ...flatMap(indices, d => [...normals[d.N], 1])
           ]
         })
       ]
@@ -85,10 +77,22 @@ export class RayTracingCamera {
       meshOffset += meshDataArr[i].length / 4
       return [currMeshOffset, m.geometry.faces.length, m.material.id, 0]
     })
-    const bvhNodeCount = 0
+
+    const flattenBvhInfo = scene.getFlattenBvhInfo()
+
+    const bvhNodeCount = flattenBvhInfo.length
     const bvhNodeOffset = meshOffset
+    const bvhDataArr = flattenBvhInfo.map(info => {
+      const {boundMin, boundMax, leftNodeIdx, rightNodeIdx, meshIdx, faceIdx} = info
+      return [
+        ...boundMin, 1,
+        ...boundMax, 1,
+        leftNodeIdx ?? -1, rightNodeIdx ?? -1, meshIdx ?? -1, faceIdx ?? -1
+      ]
+    })
+
     const materialCount = materials.length
-    const materialOffset = bvhNodeOffset // TODO 考虑 bvh 数据
+    const materialOffset = bvhNodeOffset + bvhNodeCount * 3
     const materialData = flatMap(materials, m => {
       const {r, g, b} = m.color
       const materialType = m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 0 : 1
@@ -111,7 +115,7 @@ export class RayTracingCamera {
       materialCount, materialOffset, emitTrianglesCount, emitTriangleOffset,
       ...meshMeta,
       ...flatten(meshDataArr),
-      // TODO bvh data
+      ...flatten(bvhDataArr),
       ...materialData,
       ...flatten(emitTrianglesData)
     ];
@@ -145,7 +149,9 @@ export class RayTracingCamera {
       NUM_MESHES_COUNT: scene.meshes.length,
       NUM_LIGHT_FACE_COUNT: scene.meshes.filter(m => m.material.selfLuminous[0] > 0)
         .reduce((acc, m) => acc + m.geometry.faces.length, 0),
-      NUM_MATERIALS_COUNT: uniqBy(scene.meshes.map(m => m.material), m => m.id).length
+      NUM_MATERIALS_COUNT: uniqBy(scene.meshes.map(m => m.material), m => m.id).length,
+      MAX_BVH_TREE_DEPTH: recurCalcDepth(scene.bvhRootNode, 1),
+      MAX_BVH_NODE_COUNT: scene.getFlattenBvhInfo().length
     })
     this.rayTracingProgramInfo = createProgramInfo(gl, [vert, frag])
 
