@@ -95,7 +95,8 @@ export class RayTracingCamera {
     const materialOffset = bvhNodeOffset + bvhNodeCount * 3
     const materialData = flatMap(materials, m => {
       const {r, g, b} = m.color
-      const materialType = m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 0 : 1
+      // 0 uniform 采样，1 cosine-weighted 采样，2 pbr 采样
+      const materialType = m.shaderImpl === SHADER_IMPLEMENT_STRATEGY.diffuseMap ? 1 : 2
       return [
         m.id, m.roughness ?? 1, m.metallic ?? 0, materialType,
         r, g, b, 1,

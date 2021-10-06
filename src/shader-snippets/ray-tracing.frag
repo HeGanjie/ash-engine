@@ -290,7 +290,7 @@ vec3 SampleHemisphereCos(out float pdf) {
     float z = sqrt(1.0 - r0);
     float phi = r1 * TWO_PI;
     float sinTheta = sqrt(r0);
-    vec3 dir = vec3(sinTheta * cos(phi), sinTheta * sin(phi), z);
+    vec3 dir = vec3(sinTheta * cos(phi), z, sinTheta * sin(phi));
     pdf = z * INV_PI;
     return dir;
 }
@@ -310,6 +310,14 @@ vec3 sampleHemisphere(vec3 wi, vec3 N, int materialIdx) {
         vec3 local = vec3(x, r1, z);
 
         return toWorld(local, N);
+    } else if (materialType == 1) {
+        // cosine-weighted
+        float r0 = rand(), r1 = rand();
+        float z = sqrt(1.0 - r0);
+        float phi = r1 * TWO_PI;
+        float sinTheta = sqrt(r0);
+        vec3 dir = vec3(sinTheta * cos(phi), z, sinTheta * sin(phi));
+        return toWorld(dir, N);
     } else {
         // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
         float r1 = rand(), r2 = rand();
@@ -366,7 +374,7 @@ vec3 eval(vec3 wi, vec3 wo, vec3 N, int materialIdx) {
     MaterialInfo material = getMaterialInfo(materialIdx);
     int materialType = material.type;
     vec3 kd = material.albedo;
-    if (materialType == 0) {
+    if (materialType == 0 || materialType == 1) {
         // lambert 漫反射
         return step(0.0, dot(wo, N)) * kd / M_PI;
     } else {
@@ -404,6 +412,10 @@ float pdf(vec3 wi, vec3 wo, vec3 N, int materialIdx){
     if (materialType == 0) {
         // uniform sample probability 1 / (2 * PI)
         return 0.5 / M_PI;
+    } else if (materialType == 1) {
+        // cosine-weighted
+        // cosTheta / PI
+        return dot(wi, N) * INV_PI;
     } else {
         // https://learnopengl-cn.github.io/07%20PBR/03%20IBL/02%20Specular%20IBL/
         float roughness = material.roughness;
@@ -500,8 +512,6 @@ vec3 castRay(Ray ray) {
             break;
         }
         vec3 pwi = sampleHemisphere(wo, N, materialIdx); // p 点输入光线的立体角
-//        float scatteringPdf;
-//        vec3 pwi = SampleHemisphereCos(scatteringPdf);
         Ray ray2 = Ray(shadowRayOrigin , pwi); // secondary ray
         Intersection ray2Isect = sceneIntersect(ray2);
 

@@ -28,7 +28,7 @@
  - [x] Data Texture
  - [x] Accelerate structure: BVH (GAMES 202)
  - [x] Multiple important sampling (GAMES 202 final project、https://zhuanlan.zhihu.com/p/360420413)
- - [ ] Cosine weighted hemisphere sampling MC (https://zhuanlan.zhihu.com/p/360420413)
+ - [x] Cosine weighted hemisphere sampling MC (https://zhuanlan.zhihu.com/p/360420413)
  - [ ] Realtime ray tracing (GAMES 202)
  - [ ] Screen space reflection (GAMES 202)
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
