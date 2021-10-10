@@ -18,7 +18,6 @@ uniform sampler2D u_data_texture;
 uniform int u_data_texture_width;
 uniform int u_renderCount;
 uniform float u_time;
-uniform float u_exposure;
 
 // dataImageMeta: meshCount, meshMetaOffset, bvhNodeCount,bvhNodeOffset；
 //                materialCount, materialOffset, emitTriangleCount, emitTriangleOffset；vec4 * 2
@@ -555,16 +554,13 @@ void main() {
 
     Ray primaryRay = Ray(u_eye_pos, normalize(v_pos_world - u_eye_pos));
     vec3 color = castRay(primaryRay);
-    // TODO 色调映射
-//    color = vec3(1.0) - exp(-color * u_exposure);
-    // Gamma 校正
-//    color = pow(color, vec3(1.0/2.2));
-
-    glFragColor.rgb = color;
 
     // https://zhuanlan.zhihu.com/p/58692781 滤波算法：Sn = Sn-1 * (n-1)/n + Cn / n
     if (u_renderCount != 0) {
         vec4 prevPixelColor = texelFetch(u_prevResult, ivec2(gl_FragCoord.xy), 0);
-        glFragColor.rgb = (prevPixelColor.rgb * vec3(u_renderCount - 1) + glFragColor.rgb) / vec3(u_renderCount);
+        glFragColor.rgb = (prevPixelColor.rgb * vec3(u_renderCount - 1) + color) / vec3(u_renderCount);
+    } else {
+        glFragColor.rgb = color;
+
     }
 }

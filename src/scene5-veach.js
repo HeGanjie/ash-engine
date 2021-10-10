@@ -49,36 +49,36 @@ export default async function genScene() {
 
   const light800 = new Material({
     color: {r: 0, g: 0, b: 0},
-    selfLuminous: vec3.fromValues(800, 800, 800),
+    selfLuminous: vec3.fromValues(28.28, 28.28, 28.28), // 800
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
   const light100 = new Material({
     color: {r: 0, g: 0, b: 0},
-    selfLuminous: vec3.fromValues(100, 100, 100),
+    selfLuminous: vec3.fromValues(10, 10, 10), // 100
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
   const light902 = new Material({
     color: {r: 0, g: 0, b: 0},
-    selfLuminous: vec3.fromValues(901.803, 901.803, 901.803),
+    selfLuminous: vec3.fromValues(30.03, 30.03, 30.03), // 901.803
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
   const light11 = new Material({
     color: {r: 0, g: 0, b: 0},
-    selfLuminous: vec3.fromValues(11.1111, 11.1111, 11.1111),
+    selfLuminous: vec3.fromValues(3.3333, 3.3333, 3.3333), // 11.1111
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
   const light1 = new Material({
     color: {r: 0, g: 0, b: 0},
-    selfLuminous: vec3.fromValues(1.23457, 1.23457, 1.23457),
+    selfLuminous: vec3.fromValues(1.11111, 1.11111, 1.11111), // 1.23457
     kS: 0.35,
     shaderImpl: SHADER_IMPLEMENT_STRATEGY.diffuseMap
   });
 
-  const simplifySphereGeometry = fromStackGlPrimitive(sphere(1, {segments: 4}))
+  const simplifySphereGeometry = fromStackGlPrimitive(sphere(1, {segments: 8}))
 
   let meshes = [
     new Mesh({
@@ -155,7 +155,7 @@ export default async function genScene() {
   camera.position = vec3.fromValues(0, 2, 15);
   camera.target = vec3.fromValues(0, -2, 2.5);
   camera.fov = 28 * Math.PI / 180
-  camera.exposure = 0.1
+  // camera.exposure = 0.1
 
   const startAt = Date.now()
   return {

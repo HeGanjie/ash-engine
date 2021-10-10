@@ -29,7 +29,8 @@
  - [x] Accelerate structure: BVH (GAMES 202)
  - [x] Multiple important sampling (GAMES 202 final project、https://zhuanlan.zhihu.com/p/360420413)
  - [x] Cosine weighted hemisphere sampling MC (https://zhuanlan.zhihu.com/p/360420413)
- - [ ] Realtime ray tracing (GAMES 202)
+ - [x] HDR (https://learnopengl.com/Advanced-Lighting/HDR)
+ - [ ] Realtime ray tracing (Rasterization + Path Tracing + Denoise + Temporal Accumulation, GAMES 202)
  - [ ] Screen space reflection (GAMES 202)
  - [ ] SSAO (https://learnopengl.com/Advanced-Lighting/SSAO)
  - [ ] PCF, PCSS, VSM, MSM (GAMES 202)
@@ -37,7 +38,6 @@
  - [ ] Transparent objects
  - [ ] Refraction objects
  - [ ] Subsurface scattering (https://zhuanlan.zhihu.com/p/58692377)
- - [ ] HDR (https://learnopengl.com/Advanced-Lighting/HDR)
  - [ ] Bloom (https://learnopengl.com/Advanced-Lighting/Bloom)
  - [ ] Procedural Generation
  - [ ] TAA?

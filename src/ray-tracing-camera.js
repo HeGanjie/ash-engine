@@ -8,7 +8,7 @@ import {
   setUniforms
 } from "./webgl-utils";
 import {flatMap, flatten, isEqual, orderBy, range, sum, uniqBy} from "lodash";
-import {flattenBvhNode, recurCalcDepth} from "./bvh";
+import {recurCalcDepth} from "./bvh";
 
 export class RayTracingCamera {
   position = vec3.create();
@@ -162,10 +162,10 @@ export class RayTracingCamera {
     // 创建纹理，用于累加计算，创建
     // 定义 0 级的大小和格式
     const level = 0;
-    const internalFormat = gl.RGBA;
+    const internalFormat = gl.RGBA16F;
     const border = 0;
     const format = gl.RGBA;
-    const type = gl.UNSIGNED_BYTE;
+    const type = gl.FLOAT;
     const data = null;
     this.offScreenTextures[0] = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.offScreenTextures[0]);
@@ -187,9 +187,19 @@ export class RayTracingCamera {
     // 创建并绑定帧缓冲
     this.offScreenFrameBuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.offScreenFrameBuffer);
+
     // 附加纹理为第一个颜色附件
     const attachmentPoint = gl.COLOR_ATTACHMENT0;
     gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.offScreenTextures[this.offScreenTextureWriteCursor], level);
+
+    // 开启渲染到浮点纹理的支持
+    // https://stackoverflow.com/questions/24855256/how-to-output-fragment-values-greater-than-1-in-webgl
+    let ext0 = gl.getExtension('OES_texture_float_linear');
+    let ext1 = gl.getExtension('EXT_color_buffer_float')
+    if (!ext0 || !ext1) {
+        alert("can not render to floating point textures");
+    }
+    gl.renderbufferStorage(gl.RENDERBUFFER, internalFormat, gl.canvas.width, gl.canvas.height)
   }
 
   initRenderTextureShader(scene, gl) {
@@ -234,6 +244,12 @@ export class RayTracingCamera {
     const attachmentPoint = gl.COLOR_ATTACHMENT0;
     gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.offScreenTextures[this.offScreenTextureWriteCursor], level);
 
+    // let status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    // if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    //   alert("can not render to floating point textures");
+    //   return;
+    // }
+
     // 视角变化后需要重置 renderCount
     if (!isEqual(this.position, this.prevPosition) || !isEqual(this.target, this.prevTarget)) {
       this.renderCount = 0
@@ -272,7 +288,6 @@ export class RayTracingCamera {
     uniformDict.u_data_texture_width = this.dataTextureSize[0]
     uniformDict.u_renderCount = this.renderCount++
     uniformDict.u_time = (Date.now() - this.beginTime) / 1000
-    uniformDict.u_exposure = this.exposure
 
     setUniforms(this.rayTracingProgramInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.rayTracingProgramInfo.attribSetters, this.bufferInfo);
@@ -300,6 +315,7 @@ export class RayTracingCamera {
 
     const uniformDict = this.uniformDict;
     uniformDict.u_offScreenTexture = this.offScreenTextures[this.offScreenTextureWriteCursor]
+    uniformDict.u_exposure = this.exposure
 
     setUniforms(this.outputProgramInfo.uniformSetters, uniformDict);
     setBuffersAndAttributes(gl, this.outputProgramInfo.attribSetters, this.bufferInfo);
