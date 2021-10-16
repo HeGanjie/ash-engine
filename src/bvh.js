@@ -52,7 +52,7 @@ export class Bounds3 {
   }
 
   diagonal() {
-    return this.pMax - this.pMin;
+    return vec3.sub(vec3.create(), this.pMax, this.pMin);
   }
 
   maxExtent() {
