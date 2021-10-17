@@ -369,7 +369,6 @@ export class Mesh {
   geometry = null;
   material = null;
   name = null;
-  bvhRootNode = null
 
   constructor(opts) {
     Object.assign(this, opts)
@@ -382,7 +381,7 @@ export class Mesh {
 
   buildBvh(meshIndex) {
     const {faces, vertices} = this.getTransformedGeometry();
-    this.bvhRootNode = recursiveBuild(faces.map((face, fIdx) => {
+    return recursiveBuild(faces.map((face, fIdx) => {
       const [v0, v1, v2] = face.data.map(({V}) => vertices[V]);
       return {
         meshIndex,
@@ -414,14 +413,25 @@ export class Scene {
       existedMaterials.push(mesh.material)
     })
 
-    // bvh
-    meshes.forEach((mesh, idx) => mesh.buildBvh(idx))
-    this.bvhRootNode = recursiveBuild(meshes.map((mesh, idx) => {
-      return {
-        meshIndex: idx,
-        bounds3: mesh.bvhRootNode.bounds3,
-        preFlatNode: mesh.bvhRootNode
+    // 构建 bvh，如果 mesh 内三角形不多，则直接使用三角形作为叶子节点
+    this.bvhRootNode = recursiveBuild(_.flatMap(meshes, (mesh, idx) => {
+      if (mesh.geometry.faces.length < 12) {
+        const {faces, vertices} = mesh.getTransformedGeometry();
+        return faces.map((face, fIdx) => {
+          const [v0, v1, v2] = face.data.map(({V}) => vertices[V]);
+          return {
+            meshIndex: idx,
+            faceIndex: fIdx,
+            bounds3: calcAABBox(v0, v1, v2)
+          }
+        })
       }
+      const meshBvhRootNode = mesh.buildBvh(idx)
+      return [{
+        meshIndex: idx,
+        bounds3: meshBvhRootNode.bounds3,
+        preFlatNode: meshBvhRootNode
+      }]
     }))
   }
 
