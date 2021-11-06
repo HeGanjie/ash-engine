@@ -1,6 +1,6 @@
 import {Geometry, Material, Mesh, Scene} from './engine'
 import {vec3} from 'gl-matrix'
-import {Camera} from './webgl-camera'
+import {Camera} from './webgl-rasterization-camera'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 
 export default async function genScene() {

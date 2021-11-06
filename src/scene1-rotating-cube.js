@@ -6,7 +6,7 @@ import {Geometry, Material, Mesh, Scene} from './engine'
 import {mat4, vec3} from 'gl-matrix'
 import {DistantLight} from './distant-light'
 import {PointLight} from './point-light'
-import {Camera} from './webgl-camera'
+import {Camera} from './webgl-rasterization-camera'
 import {loadImage} from './utils'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 

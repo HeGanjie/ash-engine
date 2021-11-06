@@ -1,6 +1,5 @@
 import {Geometry, Material, Mesh, Scene} from './engine'
-import {mat4, vec3} from 'gl-matrix'
-import {Camera} from './webgl-camera'
+import {vec3} from 'gl-matrix'
 import {RayTracingCamera} from './ray-tracing-camera'
 import {SHADER_IMPLEMENT_STRATEGY} from './shader-impl'
 import floorObjUrl from './assets/cornellbox/floor.obj'
@@ -10,7 +9,6 @@ import rightObjUrl from './assets/cornellbox/right.obj'
 import shortBoxObjUrl from './assets/cornellbox/shortbox.obj'
 import tallBoxObjUrl from './assets/cornellbox/tallbox.obj'
 import {loadText, mapAwaitAll} from "./utils";
-import {DistantLight} from "./distant-light";
 
 
 export default async function genScene() {
